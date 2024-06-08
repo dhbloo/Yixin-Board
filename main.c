@@ -102,7 +102,7 @@ GdkPixbuf *pixbufboardchar[9][14][128+100+100+100][2];
 
 int imgtypeboard[MAX_SIZE][MAX_SIZE];
 char piecepicname[80] = "piece.bmp";
-char fontname[120] = "";
+char fontname[4][120];
 /* log */
 GtkWidget *textlog, *textpos, *textdbcomment;
 GtkTextBuffer *buffertextlog, *buffertextcommand, *buffertextdbcomment, *buffertextpos;
@@ -515,7 +515,8 @@ GdkPixbuf *draw_overlay_scaled(GdkPixbuf *pb, int w, int h, gchar *text, char *c
 	gtk_widget_realize(scratch);
 	layout = gtk_widget_create_pango_layout(scratch, NULL);
 	gtk_widget_destroy(scratch);
-	sprintf(format, "<span foreground='%s' weight='%s' size='%d'>%%s</span>", color, weight, (int)(fontbasesize * 1000 * scale));
+	sprintf(format, "<span foreground='%s' weight='%s' size='%d' font_family='%s'>%%s</span>", 
+		    color, weight, (int)(fontbasesize * 1000 * scale), fontname[0]);
 	gchar *escaped_text = g_markup_escape_text(text, -1);
 	markup = g_strdup_printf(format, escaped_text);
 	pango_layout_set_markup(layout, markup, -1);
@@ -5727,12 +5728,15 @@ void create_windowmain()
 	scrolledtextdbcomment = gtk_scrolled_window_new(NULL, NULL);
 	gtk_container_add(GTK_CONTAINER(scrolledtextdbcomment), textdbcomment);
 	gtk_widget_set_size_request(scrolledtextdbcomment, (int)(hdpiscale*400), (int)(hdpiscale*100));
+	PangoFontDescription *dbcommentfontdesc = pango_font_description_from_string(fontname[2]);
+    gtk_widget_modify_font(textdbcomment, dbcommentfontdesc);
+    pango_font_description_free(dbcommentfontdesc);
 	g_signal_connect(buffertextdbcomment, "end-user-action", G_CALLBACK(dbcomment_changed), NULL);
 	if (databasereadonly)
 		gtk_text_view_set_editable(GTK_TEXT_VIEW(textdbcomment), 0);
 
 	textlog = gtk_text_view_new();
-	PangoFontDescription *fontDesc = pango_font_description_from_string(fontname);
+	PangoFontDescription *fontDesc = pango_font_description_from_string(fontname[1]);
     gtk_widget_modify_font(textlog, fontDesc);
 	pango_font_description_free(fontDesc);
 	gtk_text_view_set_editable(textlog, 0);
@@ -5757,7 +5761,7 @@ void create_windowmain()
 	gtk_container_add(GTK_CONTAINER(scrolledtextpos), textpos);
 	gtk_widget_set_size_request(scrolledtextpos, (int)(hdpiscale*400), (int)(hdpiscale*50));
 	gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(textpos), GTK_WRAP_CHAR);
-	PangoFontDescription *posfontdesc = pango_font_description_from_string("Monospace 10");
+	PangoFontDescription *posfontdesc = pango_font_description_from_string(fontname[3]);
     gtk_widget_modify_font(textpos, posfontdesc);
     pango_font_description_free(posfontdesc);
 	g_signal_connect(buffertextpos, "end-user-action", G_CALLBACK(textpos_changed), NULL);
@@ -6663,11 +6667,15 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 		language = 0;
 	}
 
-	if((in = fopen("font.txt", "r")) != NULL)
+	if((in = fopen("settings_font.txt", "r")) != NULL)
 	{
-		fgets(s, sizeof(s), in);
-		s[strcspn(s, "\n")] = 0;
-		strcpy(fontname, s);
+		for (int i = 0; i < 4; i++) {
+			fgets(s, sizeof(s), in);
+			s[strcspn(s, "\n")] = 0;
+			char *semicolon = strchr(s, ';');
+			if (semicolon) *semicolon = '\0';
+			strcpy(fontname[i], s);
+		}
 	}
 }
 static void childexit_watch(GPid pid, gint status, gpointer *data)
