@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
+#include <locale.h>
 #include "yixin.h"
 #include "resource.h" /* not needed if you are not provided with resource.h, Yixin.rc and icon.ico */
 #ifdef G_OS_WIN32
@@ -256,12 +257,20 @@ int hotkeykeylist[][2] =
 
 char *_T(char *s)
 {
-	return g_locale_to_utf8(s, -1, 0, 0, 0);
+	if (!s)
+		return NULL;
+
+	char *result = g_locale_to_utf8(s, -1, 0, 0, 0);
+	return result ? result : g_strdup("??");
 }
 
 char *__invT(char *s)
 {
-	return g_locale_from_utf8(s, -1, 0, 0, 0);
+	if (!s)
+		return NULL;
+
+	char *result = g_locale_from_utf8(s, -1, 0, 0, 0);
+	return result ? result : g_strdup("??");
 }
 
 static char *pending_text_buffer = NULL;
@@ -5561,17 +5570,17 @@ gboolean create_menu_proxy(GtkToolItem *tool_item, gpointer user_data)
 	// 创建带图标的溢出菜单项
 	GtkWidget *menu_item = gtk_menu_item_new();
 	GtkWidget *menu_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2); // 减少间距到2像素
-	
+
 	// 设置菜单项的CSS样式来减少内边距
 	GtkStyleContext *context = gtk_widget_get_style_context(menu_item);
 	GtkCssProvider *provider = gtk_css_provider_new();
 	gtk_css_provider_load_from_data(provider,
-		"menuitem { padding: 4px 0px; }", -1, NULL);
+									"menuitem { padding: 4px 0px; }", -1, NULL);
 	gtk_style_context_add_provider(context,
-		GTK_STYLE_PROVIDER(provider),
-		GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+								   GTK_STYLE_PROVIDER(provider),
+								   GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 	g_object_unref(provider);
-	
+
 	GtkWidget *menu_image = NULL;
 	GtkWidget *menu_label = gtk_label_new(_T(clanguage[toolbarlng[i]]));
 
@@ -5941,7 +5950,7 @@ void create_windowmain()
 	{
 		FILE *in;
 		char s[80];
-		sprintf(s, "language\\%d.lng", i);
+		sprintf(s, "language/%d.lng", i);
 		if ((in = fopen(s, "r")) != NULL)
 		{
 			while (fgets(s, sizeof(s), in))
@@ -7153,6 +7162,11 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 			}
 			fclose(in);
 		}
+		else
+		{
+			toolbarnum = i;
+			break;
+		}
 	}
 	for (i = 0; i < hotkeynum; i++)
 	{
@@ -7172,6 +7186,11 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 				hotkeycommand[i][j] = 0;
 			}
 			fclose(in);
+		}
+		else
+		{
+			hotkeynum = i;
+			break;
 		}
 	}
 	// 加载自定义图标（如果存在icon文件夹）
@@ -7204,7 +7223,7 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 	for (i = 0; i < 1024; i++)
 		clanguage[i] = NULL;
 
-	sprintf(s, "language\\%d.lng", language);
+	sprintf(s, "language/%d.lng", language);
 	if ((in = fopen(s, "r")) != NULL)
 	{
 		while (fgets(s, sizeof(s), in))

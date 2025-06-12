@@ -1,5 +1,8 @@
 all: main.c yixin.h
-	gcc -Wall -O2 main.c -o Yixin -lm `pkg-config --cflags gtk+-3.0` `pkg-config --libs gtk+-3.0` `pkg-config --libs --cflags cairo`
+	gcc main.c -O3 -o Yixin -lm `pkg-config --libs --cflags gtk+-3.0` `pkg-config --libs --cflags cairo` -Wno-incompatible-pointer-types -Wno-int-conversion
+
+debug: main.c yixin.h
+	gcc main.c -g -o Yixin -lm `pkg-config --libs --cflags gtk+-3.0` `pkg-config --libs --cflags cairo` -Wno-incompatible-pointer-types -Wno-int-conversion
 
 build-windows: main.c yixin.h Yixin.rc
 	gcc main.c -O3 -c -o Yixin.o -lm `pkg-config --cflags gtk+-3.0` `pkg-config --cflags cairo` -Wno-incompatible-pointer-types -Wno-int-conversion
