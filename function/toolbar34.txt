@@ -1,0 +1,8 @@
+316
+view-refresh
+
+command on
+reloadconfig config_mix9lite.toml
+command off
+dbrefresh
+

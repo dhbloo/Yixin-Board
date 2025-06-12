@@ -1,0 +1,8 @@
+301
+edit-clear
+
+command on
+yxhashclear
+command off
+clear
+

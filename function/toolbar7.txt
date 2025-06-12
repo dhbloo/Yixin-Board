@@ -1,0 +1,8 @@
+203
+icon/yixin4.ico
+
+command on
+info strength 100
+command off
+searchdefend
+

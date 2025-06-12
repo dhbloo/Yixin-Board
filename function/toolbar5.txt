@@ -1,5 +1,5 @@
 45
-gtk-stop
+media-playback-stop
 
 thinking stop
 

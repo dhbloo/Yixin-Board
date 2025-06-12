@@ -1,0 +1,8 @@
+317
+view-refresh
+
+command on
+reloadconfig config_classical.toml
+command off
+dbrefresh
+

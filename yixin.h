@@ -2,9 +2,9 @@
 #include <gtk/gtk.h>
 #include <glib.h>
 #include <gio/gio.h>
-#include "gdk/gdkkeysyms.h"
+#include <gdk/gdkkeysyms.h>
 
-void send_command(char *command);
+void send_command(const char *command);
 void make_move(int y, int x);
 gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, GdkWindowEdge edge);
 int is_integer(const char *str);

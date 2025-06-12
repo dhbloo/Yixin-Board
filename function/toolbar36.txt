@@ -1,0 +1,7 @@
+306
+tools-check-spelling
+
+command on
+bench
+command off
+

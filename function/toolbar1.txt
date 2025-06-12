@@ -1,5 +1,5 @@
 48
-gtk-goto-first
+go-first
 
 undo all
 

@@ -111,3 +111,42 @@
 114=Input Board text:
 115=Saving database to
 116=Are your sure to delete all branches?
+
+
+201=VCT
+202=VC2
+203=Defend
+204=Save Database
+205=Load Database
+206=New Database
+
+300=Trace
+301=ClearHash
+302=Reload
+303=Handicap
+304=Balance1
+305=Balance2
+306=Bench
+307=GetPos
+308=PutPos
+309=Database Value
+310=Delete One
+311=Delete All Branch
+312=Database Merge
+313=Database Split
+314=Import Lib file
+315=NNUE(default)
+316=NNUE(checkmate)
+317=Classic(checkmate)
+318=Del Non W/L
+319=Del W/L
+320=Del Win
+321=Del Lose
+322=Del NoStep WL
+323=Del <30Step WL
+324=DelAll Non W/L
+325=DelAll W/L
+326=DelAll Win
+327=DelAll Lose
+328=DelAll NoStep WL
+329=DelAll <30Step WL

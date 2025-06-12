@@ -1,5 +1,5 @@
 47
-gtk-go-forward
+go-next
 
 redo one
 

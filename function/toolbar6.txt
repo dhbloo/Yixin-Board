@@ -1,5 +1,8 @@
 44
-gtk-execute
+system-run
 
+command on
+info strength 100
+command off
 thinking start
 

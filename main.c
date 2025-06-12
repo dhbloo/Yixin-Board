@@ -1,4 +1,4 @@
-﻿#define _CRT_SECURE_NO_WARNINGS /* for vs */
+#define _CRT_SECURE_NO_WARNINGS /* for vs */
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -7,9 +7,14 @@
 #include <math.h>
 #include "yixin.h"
 #include "resource.h" /* not needed if you are not provided with resource.h, Yixin.rc and icon.ico */
+#ifdef G_OS_WIN32
+#include <windows.h>
+#else
+#include <dirent.h>
+#endif
 
 #define MAX_SIZE 22
-#define CAUTION_NUM 5  //0..CAUTION_NUM
+#define CAUTION_NUM 5 // 0..CAUTION_NUM
 #define MIN_SPLIT_DEPTH 5
 #define MAX_SPLIT_DEPTH 20
 #define MAX_TOOLBAR_ITEM 64
@@ -20,9 +25,9 @@
 int yixin_strnicmp(const char *string1, const char *string2, size_t count)
 {
 #ifdef _WIN32
- return _strnicmp(string1, string2, count);
+	return _strnicmp(string1, string2, count);
 #else
- return strncasecmp(string1, string2, count);
+	return strncasecmp(string1, string2, count);
 #endif
 }
 
@@ -40,7 +45,7 @@ int64_t timeoutturn = 10000;
 int64_t timeoutmatch = 2000000;
 int64_t maxnode = 1000000000;
 int maxdepth = 100;
-int maxthreadnum = 1; //1..maxthreadnum
+int maxthreadnum = 1; // 1..maxthreadnum
 int maxhashsize = 30;
 int increment = 0;
 int computerside = 0; /* 0 none 1 black 2 while 3 black&white */
@@ -51,7 +56,7 @@ int threadsplitdepth = 7;
 int nbestsym = 0;
 int board[MAX_SIZE][MAX_SIZE];
 int boardnumber[MAX_SIZE][MAX_SIZE];
-int movepath[MAX_SIZE*MAX_SIZE];
+int movepath[MAX_SIZE * MAX_SIZE];
 int forbid[MAX_SIZE][MAX_SIZE];
 int boardblock[MAX_SIZE][MAX_SIZE];
 int boardbestX = -1, boardbestY = -1;
@@ -66,7 +71,7 @@ int piecenum = 0;
 char isthinking = 0, isgameover = 0, isneedrestart = 0, isneedomit = 0;
 char isctrlpressed = 0;
 char drawpieceonly = 0;
-char bestline[MAX_SIZE*MAX_SIZE*5+1] = "";
+char bestline[MAX_SIZE * MAX_SIZE * 5 + 1] = "";
 int bestval;
 int move5N;
 int levelchoice = 0;
@@ -85,9 +90,9 @@ int toolbarpos = 1;
 int fontbasesize = 10;
 int language = 0; /* 0: English 1: Other languages */
 int rlanguage = 0;
-char **clanguage = NULL; /* Custom language */
-int movx[8] = {  0,  0,  1, -1,  1,  1, -1, -1}; /* note that the order is related to winning checking function(s)*/
-int movy[8] = {  1, -1,  0,  0,  1, -1,  1, -1};
+char **clanguage = NULL;				   /* Custom language */
+int movx[8] = {0, 0, 1, -1, 1, 1, -1, -1}; /* note that the order is related to winning checking function(s)*/
+int movy[8] = {1, -1, 0, 0, 1, -1, 1, -1};
 /* engine */
 GIOChannel *iochannelin, *iochannelout, *iochannelerr;
 /* windowmain */
@@ -97,8 +102,8 @@ GtkWidget *imageboard[MAX_SIZE][MAX_SIZE];
 GtkWidget *labelboard[2][MAX_SIZE];
 GtkWidget *vboxwindowmain;
 GdkPixbuf *pixbufboard[9][14];
-GdkPixbuf *pixbufboardnumber[9][14][MAX_SIZE*MAX_SIZE+1][2];
-GdkPixbuf *pixbufboardchar[9][14][128+100+100+100][2];
+GdkPixbuf *pixbufboardnumber[9][14][MAX_SIZE * MAX_SIZE + 1][2];
+GdkPixbuf *pixbufboardchar[9][14][128 + 100 + 100 + 100][2];
 
 int imgtypeboard[MAX_SIZE][MAX_SIZE];
 char piecepicname[80] = "piece.bmp";
@@ -131,138 +136,201 @@ int recorddebuglog = 0;
 FILE *debuglog;
 
 int toolbarlng[MAX_TOOLBAR_ITEM] =
-{
-	48,
-	46,
-	47,
-	49,
-	45,
-	44
-};
+	{
+		48,
+		46,
+		47,
+		49,
+		45,
+		44};
 
 char *toolbaricon[MAX_TOOLBAR_ITEM] =
-{
-	GTK_STOCK_GOTO_FIRST,
-	GTK_STOCK_GO_BACK,
-	GTK_STOCK_GO_FORWARD,
-	GTK_STOCK_GOTO_LAST,
-	GTK_STOCK_STOP,
-	GTK_STOCK_EXECUTE
-};
+	{
+		"go-first",
+		"go-previous",
+		"go-next",
+		"go-last",
+		"media-playback-stop",
+		"media-playback-start"};
 
 char toolbarcommand[MAX_TOOLBAR_ITEM][MAX_TOOLBAR_COMMAND_LEN] =
-{
-	"undo all\n",
-	"undo one\n",
-	"redo one\n",
-	"redo all\n",
-	"thinking stop\n",
-	"thinking start\n"
-};
+	{
+		"undo all\n",
+		"undo one\n",
+		"redo one\n",
+		"redo all\n",
+		"thinking stop\n",
+		"thinking start\n"};
 
 int hotkeynum = 6;
 
 int hotkeykey[MAX_HOTKEY_ITEM] =
-{
-	13,
-	14,
-	15,
-	16,
-	53,
-	1
-};
+	{
+		13,
+		14,
+		15,
+		16,
+		53,
+		1};
 
 char hotkeycommand[MAX_HOTKEY_ITEM][MAX_HOTKEY_COMMAND_LEN] =
-{
-	"undo all\n",
-	"redo all\n",
-	"undo one\n",
-	"redo one\n",
-	"thinking stop\n",
-	"thinking toggle\n"
-};
+	{
+		"undo all\n",
+		"redo all\n",
+		"undo one\n",
+		"redo one\n",
+		"thinking stop\n",
+		"thinking toggle\n"};
 
 char *hotkeynamelist[] = {
 	"",
 	"F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
 	"Ctrl + Up", "Ctrl + Down", "Ctrl + Left", "Ctrl + Right",
 	"Ctrl + 1", "Ctrl + 2", "Ctrl + 3", "Ctrl + 4", "Ctrl + 5", "Ctrl + 6", "Ctrl + 7", "Ctrl + 8", "Ctrl + 9", "Ctrl + 0",
-	"Ctrl + A", "Ctrl + B", "Ctrl + C", "Ctrl + D", "Ctrl + E", "Ctrl + F", "Ctrl + G", "Ctrl + H", "Ctrl + I", "Ctrl + J", 
-	"Ctrl + K", "Ctrl + L", "Ctrl + M", "Ctrl + N", "Ctrl + O", "Ctrl + P", "Ctrl + Q", "Ctrl + R", "Ctrl + S", "Ctrl + T", 
+	"Ctrl + A", "Ctrl + B", "Ctrl + C", "Ctrl + D", "Ctrl + E", "Ctrl + F", "Ctrl + G", "Ctrl + H", "Ctrl + I", "Ctrl + J",
+	"Ctrl + K", "Ctrl + L", "Ctrl + M", "Ctrl + N", "Ctrl + O", "Ctrl + P", "Ctrl + Q", "Ctrl + R", "Ctrl + S", "Ctrl + T",
 	"Ctrl + U", "Ctrl + V", "Ctrl + W", "Ctrl + X", "Ctrl + Y", "Ctrl + Z",
-	"Escape", NULL
-};
+	"Escape", NULL};
 
 int hotkeykeylist[][2] =
-{
-	{ 0, 0 }, //0
-	{ 0, GDK_F1 }, //1
-	{ 0, GDK_F2 }, //2
-	{ 0, GDK_F3 }, //3
-	{ 0, GDK_F4 }, //4
-	{ 0, GDK_F5 }, //5
-	{ 0, GDK_F6 }, //6
-	{ 0, GDK_F7 }, //7
-	{ 0, GDK_F8 }, //8
-	{ 0, GDK_F9 }, //9
-	{ 0, GDK_F10 }, //10
-	{ 0, GDK_F11 }, //11
-	{ 0, GDK_F12 }, //12
+	{
+		{0, 0},			 // 0
+		{0, GDK_KEY_F1}, // 1
+		{0, GDK_KEY_F1}, // 2
+		{0, GDK_KEY_F1}, // 3
+		{0, GDK_KEY_F1}, // 4
+		{0, GDK_KEY_F1}, // 5
+		{0, GDK_KEY_F1}, // 6
+		{0, GDK_KEY_F1}, // 7
+		{0, GDK_KEY_F1}, // 8
+		{0, GDK_KEY_F1}, // 9
+		{0, GDK_KEY_F1}, // 10
+		{0, GDK_KEY_F1}, // 11
+		{0, GDK_KEY_F1}, // 12
 
-	{ GDK_CONTROL_MASK, GDK_Up }, //13
-	{ GDK_CONTROL_MASK, GDK_Down }, //14
-	{ GDK_CONTROL_MASK, GDK_Left }, //15
-	{ GDK_CONTROL_MASK, GDK_Right }, //16
+		{GDK_CONTROL_MASK, GDK_KEY_Up},	   // 13
+		{GDK_CONTROL_MASK, GDK_KEY_Down},  // 14
+		{GDK_CONTROL_MASK, GDK_KEY_Left},  // 15
+		{GDK_CONTROL_MASK, GDK_KEY_Right}, // 16
 
-	{ GDK_CONTROL_MASK, GDK_1 }, //17
-	{ GDK_CONTROL_MASK, GDK_2 }, //18
-	{ GDK_CONTROL_MASK, GDK_3 }, //19
-	{ GDK_CONTROL_MASK, GDK_4 }, //20
-	{ GDK_CONTROL_MASK, GDK_5 }, //21
-	{ GDK_CONTROL_MASK, GDK_6 }, //22
-	{ GDK_CONTROL_MASK, GDK_7 }, //23
-	{ GDK_CONTROL_MASK, GDK_8 }, //24
-	{ GDK_CONTROL_MASK, GDK_9 }, //25
-	{ GDK_CONTROL_MASK, GDK_0 }, //26
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 17
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 18
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 19
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 20
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 21
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 22
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 23
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 24
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 25
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 26
 
-	{ GDK_CONTROL_MASK, GDK_A }, //27
-	{ GDK_CONTROL_MASK, GDK_B }, //28
-	{ GDK_CONTROL_MASK, GDK_C }, //29
-	{ GDK_CONTROL_MASK, GDK_D }, //30
-	{ GDK_CONTROL_MASK, GDK_E }, //31
-	{ GDK_CONTROL_MASK, GDK_F }, //32
-	{ GDK_CONTROL_MASK, GDK_G }, //33
-	{ GDK_CONTROL_MASK, GDK_H }, //34
-	{ GDK_CONTROL_MASK, GDK_I }, //35
-	{ GDK_CONTROL_MASK, GDK_J }, //36
-	{ GDK_CONTROL_MASK, GDK_K }, //37
-	{ GDK_CONTROL_MASK, GDK_L }, //38
-	{ GDK_CONTROL_MASK, GDK_M }, //39
-	{ GDK_CONTROL_MASK, GDK_N }, //40
-	{ GDK_CONTROL_MASK, GDK_O }, //41
-	{ GDK_CONTROL_MASK, GDK_P }, //42
-	{ GDK_CONTROL_MASK, GDK_Q }, //43
-	{ GDK_CONTROL_MASK, GDK_R }, //44
-	{ GDK_CONTROL_MASK, GDK_S }, //45
-	{ GDK_CONTROL_MASK, GDK_T }, //46
-	{ GDK_CONTROL_MASK, GDK_U }, //47
-	{ GDK_CONTROL_MASK, GDK_V }, //48
-	{ GDK_CONTROL_MASK, GDK_W }, //49
-	{ GDK_CONTROL_MASK, GDK_X }, //50
-	{ GDK_CONTROL_MASK, GDK_Y }, //51
-	{ GDK_CONTROL_MASK, GDK_Z }, //52
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 27
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 28
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 29
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 30
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 31
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 32
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 33
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 34
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 35
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 36
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 37
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 38
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 39
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 40
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 41
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 42
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 43
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 44
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 45
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 46
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 47
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 48
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 49
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 50
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 51
+		{GDK_CONTROL_MASK, GDK_KEY_1}, // 52
 
-	{ 0, GDK_Escape } //53
+		{0, GDK_KEY_Escape} // 53
 };
 
-char * _T(char *s)
+char *_T(char *s)
 {
 	return g_locale_to_utf8(s, -1, 0, 0, 0);
 }
 
-char * __invT(char *s)
+char *__invT(char *s)
 {
 	return g_locale_from_utf8(s, -1, 0, 0, 0);
+}
+
+static char *pending_text_buffer = NULL;
+static int pending_size_buffer = 0;
+static int pending_capacity_buffer = 0;
+static guint batch_timeout_id_global = 0;
+static guint scroll_timeout_id_global = 0;
+
+static gboolean delayed_scroll_handler(gpointer data)
+{
+	GtkTextIter end;
+	GtkTextMark *endmark;
+
+	if (buffertextlog == NULL)
+	{
+		scroll_timeout_id_global = 0;
+		return FALSE;
+	}
+
+	gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffertextlog), &end);
+	gtk_text_iter_set_line_offset(&end, 0);
+	endmark = gtk_text_buffer_get_mark(GTK_TEXT_BUFFER(buffertextlog), "scroll");
+	if (endmark)
+	{
+		gtk_text_buffer_move_mark(GTK_TEXT_BUFFER(buffertextlog), endmark, &end);
+		gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(textlog), endmark);
+	}
+	scroll_timeout_id_global = 0;
+	return FALSE;
+}
+
+static gboolean flush_pending_text_handler(gpointer data)
+{
+	if (pending_text_buffer && pending_size_buffer > 0)
+	{
+		GtkTextIter start, end;
+		int len;
+
+		if (buffertextlog == NULL)
+		{
+			pending_size_buffer = 0;
+			batch_timeout_id_global = 0;
+			return FALSE;
+		}
+
+		g_signal_handlers_block_by_func(buffertextlog, NULL, NULL);
+
+		len = gtk_text_buffer_get_line_count(GTK_TEXT_BUFFER(buffertextlog));
+		if (len > 800)
+		{
+			gtk_text_buffer_get_iter_at_line(GTK_TEXT_BUFFER(buffertextlog), &start, 0);
+			gtk_text_buffer_get_iter_at_line(GTK_TEXT_BUFFER(buffertextlog), &end, len - 800);
+			gtk_text_buffer_delete(GTK_TEXT_BUFFER(buffertextlog), &start, &end);
+		}
+
+		gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffertextlog), &start, &end);
+		gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffertextlog), &end, pending_text_buffer, pending_size_buffer);
+
+		g_signal_handlers_unblock_by_func(buffertextlog, NULL, NULL);
+
+		pending_size_buffer = 0;
+
+		if (scroll_timeout_id_global == 0)
+		{
+			scroll_timeout_id_global = g_timeout_add(50, delayed_scroll_handler, NULL);
+		}
+	}
+	batch_timeout_id_global = 0;
+	return FALSE;
 }
 
 void print_log(char *text)
@@ -274,7 +342,7 @@ void print_log(char *text)
 	int len;
 	int i;
 
-	if(buffertextlog == NULL)
+	if (buffertextlog == NULL)
 	{
 		printf("%s", text);
 		return;
@@ -282,21 +350,31 @@ void print_log(char *text)
 
 	if (commandmodel == 0)
 	{
-		if (strncmp(text, "OK", 2) == 0) text += 2;
-		if (strncmp(text, "MESSAGE", 7) == 0) text += 7 + 1;
-		if (strncmp(text, "DETAIL", 6) == 0) text += 6 + 1;
-		if (strncmp(text, "DEBUG", 5) == 0) text += 5 + 1;
-		if (strncmp(text, "ERROR", 5) == 0) text += 5;
-		if (strncmp(text, "UNKNOWN", 7) == 0) text += 7;
-		//if(strncmp(text, "FORBID", 6) == 0) text += 6;
+		if (strncmp(text, "OK", 2) == 0)
+			text += 2;
+		if (strncmp(text, "MESSAGE", 7) == 0)
+			text += 7 + 1;
+		if (strncmp(text, "DETAIL", 6) == 0)
+			text += 6 + 1;
+		if (strncmp(text, "DEBUG", 5) == 0)
+			text += 5 + 1;
+		if (strncmp(text, "ERROR", 5) == 0)
+			text += 5;
+		if (strncmp(text, "UNKNOWN", 7) == 0)
+			text += 7;
+		// if(strncmp(text, "FORBID", 6) == 0) text += 6;
 		if (strncmp(text, "YIXIN", 5) == 0 || strncmp(text, "DEEP YIXIN", 10) == 0)
 		{
-			if (flag == 0) flag = 1; else return;
+			if (flag == 0)
+				flag = 1;
+			else
+				return;
 		}
 
 		for (i = 0; text[i]; i++)
 		{
-			if (!isspace(text[i])) break;
+			if (!isspace(text[i]))
+				break;
 		}
 		if (text[i] == 0)
 		{
@@ -306,29 +384,46 @@ void print_log(char *text)
 		{
 			fspace = 0;
 		}
-		if (fspace >= 2) return;
+		if (fspace >= 2)
+			return;
 	}
 
-	len = gtk_text_buffer_get_line_count(GTK_TEXT_BUFFER(buffertextlog));
-	if(len > 800)
+	if (init == 0)
 	{
-		gtk_text_buffer_get_iter_at_line(GTK_TEXT_BUFFER(buffertextlog), &start, 0);
-		gtk_text_buffer_get_iter_at_line(GTK_TEXT_BUFFER(buffertextlog), &end, len - 800);
-		gtk_text_buffer_delete(GTK_TEXT_BUFFER(buffertextlog), &start, &end);
-	}
-	gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffertextlog), &start, &end);
-	gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffertextlog), &end, text, strlen(text));
-
-	gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffertextlog), &end);
-	gtk_text_iter_set_line_offset(&end, 0);
-	if(init == 0)
-	{
+		GtkTextIter end;
+		gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffertextlog), &end);
+		gtk_text_iter_set_line_offset(&end, 0);
 		init = 1;
 		gtk_text_buffer_create_mark(GTK_TEXT_BUFFER(buffertextlog), "scroll", &end, TRUE);
 	}
-	endmark = gtk_text_buffer_get_mark(GTK_TEXT_BUFFER(buffertextlog), "scroll");
-	gtk_text_buffer_move_mark(GTK_TEXT_BUFFER(buffertextlog), endmark, &end);
-	gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(textlog), endmark);
+
+	int text_len = strlen(text);
+	if (pending_size_buffer + text_len + 1 > pending_capacity_buffer)
+	{
+		pending_capacity_buffer = (pending_size_buffer + text_len + 1) * 2;
+		pending_text_buffer = realloc(pending_text_buffer, pending_capacity_buffer);
+	}
+
+	if (pending_text_buffer)
+	{
+		memcpy(pending_text_buffer + pending_size_buffer, text, text_len);
+		pending_size_buffer += text_len;
+		pending_text_buffer[pending_size_buffer] = '\0';
+	}
+
+	if (batch_timeout_id_global == 0)
+	{
+		batch_timeout_id_global = g_timeout_add(10, flush_pending_text_handler, NULL);
+	}
+}
+
+void cleanup_log_pending_text()
+{
+	static int cleanup_called = 0;
+	if (!cleanup_called)
+	{
+		cleanup_called = 1;
+	}
 }
 
 int printf_log(char *fmt, ...)
@@ -338,77 +433,77 @@ int printf_log(char *fmt, ...)
 	char text[8192], *p = text;
 	int i;
 	va_list va;
-	va_start(va,fmt);
+	va_start(va, fmt);
 	cnt = vsprintf(buffer, fmt, va);
 
-	if(language)
+	if (language)
 	{
-		for(i=0; buffer[i]; )
+		for (i = 0; buffer[i];)
 		{
-			if(strncmp(buffer+i, "BESTLINE", 8) == 0)
+			if (strncmp(buffer + i, "BESTLINE", 8) == 0)
 			{
 				strcpy(p, clanguage[0]);
 				p += strlen(clanguage[0]);
 				i += 8;
 				continue;
 			}
-			if(strncmp(buffer+i, "EVALUATION", 10) == 0)
+			if (strncmp(buffer + i, "EVALUATION", 10) == 0)
 			{
 				strcpy(p, clanguage[1]);
 				p += strlen(clanguage[1]);
 				i += 10;
 				continue;
 			}
-			if(strncmp(buffer+i, "SPEED", 5) == 0)
+			if (strncmp(buffer + i, "SPEED", 5) == 0)
 			{
 				strcpy(p, clanguage[2]);
 				p += strlen(clanguage[2]);
 				i += 5;
 				continue;
 			}
-			if(strncmp(buffer+i, "TIME", 4) == 0)
+			if (strncmp(buffer + i, "TIME", 4) == 0)
 			{
 				strcpy(p, clanguage[3]);
 				p += strlen(clanguage[3]);
 				i += 4;
 				continue;
 			}
-			if(strncmp(buffer+i, "DEPTH", 5) == 0)
+			if (strncmp(buffer + i, "DEPTH", 5) == 0)
 			{
 				strcpy(p, clanguage[4]);
 				p += strlen(clanguage[4]);
 				i += 5;
 				continue;
 			}
-			if(strncmp(buffer+i, "BLOCK", 5) == 0)
+			if (strncmp(buffer + i, "BLOCK", 5) == 0)
 			{
 				strcpy(p, clanguage[5]);
 				p += strlen(clanguage[5]);
 				i += 5;
 				continue;
 			}
-			if(strncmp(buffer+i, "NODE", 4) == 0)
+			if (strncmp(buffer + i, "NODE", 4) == 0)
 			{
 				strcpy(p, clanguage[6]);
 				p += strlen(clanguage[6]);
 				i += 4;
 				continue;
 			}
-			if(strncmp(buffer+i, "VAL", 3) == 0)
+			if (strncmp(buffer + i, "VAL", 3) == 0)
 			{
 				strcpy(p, clanguage[7]);
 				p += strlen(clanguage[7]);
 				i += 3;
 				continue;
 			}
-			if(strncmp(buffer+i, "MS", 2) == 0)
+			if (strncmp(buffer + i, "MS", 2) == 0)
 			{
 				strcpy(p, clanguage[8]);
 				p += strlen(clanguage[8]);
 				i += 2;
 				continue;
 			}
-			if(strncmp(buffer+i, "RULE", 4) == 0)
+			if (strncmp(buffer + i, "RULE", 4) == 0)
 			{
 				strcpy(p, clanguage[9]);
 				p += strlen(clanguage[9]);
@@ -416,8 +511,8 @@ int printf_log(char *fmt, ...)
 				continue;
 			}
 			*p = buffer[i];
-			p ++;
-			i ++;
+			p++;
+			i++;
 		}
 		*p = '\0';
 	}
@@ -435,7 +530,7 @@ void print_command(char *text)
 {
 	GtkTextIter start, end;
 
-	if(buffertextcommand == NULL)
+	if (buffertextcommand == NULL)
 	{
 		printf("%s", text);
 		return;
@@ -450,7 +545,7 @@ int printf_command(char *fmt, ...)
 	int cnt;
 	char buffer[1024];
 	va_list va;
-	va_start(va,fmt);
+	va_start(va, fmt);
 	cnt = vsprintf(buffer, fmt, va);
 	print_command(_T(buffer));
 	va_end(va);
@@ -459,8 +554,8 @@ int printf_command(char *fmt, ...)
 
 void show_welcome()
 {
-	printf_log("Yixin Board "VERSION"\n");
-	if(language)
+	printf_log("Yixin Board " VERSION "\n");
+	if (language)
 	{
 		printf_command(clanguage[10]);
 	}
@@ -472,8 +567,7 @@ void show_welcome()
 
 void show_thanklist()
 {
-	printf_log(language==0?"Thanks to all who helped development of Yixin:":
-			clanguage[11]);
+	printf_log(language == 0 ? "Thanks to all who helped development of Yixin:" : clanguage[11]);
 	printf_log("\n");
 	printf_log("  彼方\n");
 	printf_log("  XR\n");
@@ -496,46 +590,61 @@ void show_thanklist()
 	printf_log("\n");
 }
 
-GdkPixbuf *draw_overlay_scaled(GdkPixbuf *pb, int w, int h, gchar *text, char *color, char *weight, float scale)
+GdkPixbuf *draw_overlay_scaled(GdkPixbuf *pb, int w, int h, gchar *text, const char *color, const char *weight, float scale)
 {
-	GdkPixmap *pm;
-	GdkGC *gc;
-	GtkWidget *scratch;
+	cairo_surface_t *surface;
+	cairo_t *cr;
 	PangoLayout *layout;
+	PangoFontDescription *font_desc;
 	gchar *markup;
 	GdkPixbuf *ret;
 	gchar format[100];
 	PangoRectangle ink_rect, logical_rect;
 
-	pm = gdk_pixmap_new(windowmain->window, w, h, -1);
-	gdk_drawable_set_colormap(pm, gdk_colormap_get_system());
-	gc = gdk_gc_new(pm);
-	gdk_draw_pixbuf(pm, gc, pb, 0, 0, 0, 0, w, h, GDK_RGB_DITHER_NONE, 0, 0);
-	scratch = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	gtk_widget_realize(scratch);
-	layout = gtk_widget_create_pango_layout(scratch, NULL);
-	gtk_widget_destroy(scratch);
-	sprintf(format, "<span foreground='%s' weight='%s' size='%d' font_family='%s'>%%s</span>", 
-		    color, weight, (int)(fontbasesize * 1000 * scale), fontname[0]);
+	// Create Cairo surface and context
+	surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
+	cr = cairo_create(surface);
+
+	// Draw the base pixbuf onto the surface
+	gdk_cairo_set_source_pixbuf(cr, pb, 0, 0);
+	cairo_paint(cr);
+
+	// Create Pango layout
+	layout = pango_cairo_create_layout(cr);
+
+	// Set up font and markup
+	sprintf(format, "<span foreground='%s' weight='%s' size='%d' font_family='%s'>%%s</span>",
+			color, weight, (int)(fontbasesize * 1000 * scale), fontname[0]);
 	gchar *escaped_text = g_markup_escape_text(text, -1);
 	markup = g_strdup_printf(format, escaped_text);
 	pango_layout_set_markup(layout, markup, -1);
 	g_free(escaped_text);
 	g_free(markup);
+
+	// Get text extents and center the text
 	pango_layout_get_pixel_extents(layout, &ink_rect, &logical_rect);
-	gdk_draw_layout(pm, gc, w/2 - logical_rect.width/2, h/2 - logical_rect.height/2, layout);
+	cairo_move_to(cr, w / 2 - logical_rect.width / 2, h / 2 - logical_rect.height / 2);
+
+	// Draw the text
+	pango_cairo_show_layout(cr, layout);
+
+	// Convert surface back to pixbuf
+	ret = gdk_pixbuf_get_from_surface(surface, 0, 0, w, h);
+
+	// Cleanup
 	g_object_unref(layout);
-	ret = gdk_pixbuf_get_from_drawable(NULL, pm, NULL, 0, 0, 0, 0, w, h);
-	g_object_unref(pm);
-	g_object_unref(gc);
+	cairo_destroy(cr);
+	cairo_surface_destroy(surface);
+
 	return ret;
 }
 
-GdkPixbuf *draw_overlay(GdkPixbuf *pb, int w, int h, gchar *text, char *color) {
+GdkPixbuf *draw_overlay(GdkPixbuf *pb, int w, int h, gchar *text, const char *color)
+{
 	return draw_overlay_scaled(pb, w, h, text, color, "bold", 1.0f);
 }
 
-void send_command(char *command)
+void send_command(const char *command)
 {
 	gsize size;
 	g_io_channel_write_chars(iochannelin, command, -1, &size, NULL);
@@ -544,11 +653,11 @@ void send_command(char *command)
 	if (debuglog != NULL)
 	{
 		fprintf(debuglog, "SEND_COMMAND [%s,%s,%s,%s]: %s\n",
-			gtk_label_get_text(clocklabel[0]),
-			gtk_label_get_text(clocklabel[1]),
-			gtk_label_get_text(clocklabel[2]),
-			gtk_label_get_text(clocklabel[3]),
-			command);
+				gtk_label_get_text(clocklabel[0]),
+				gtk_label_get_text(clocklabel[1]),
+				gtk_label_get_text(clocklabel[2]),
+				gtk_label_get_text(clocklabel[3]),
+				command);
 		fflush(debuglog);
 	}
 }
@@ -556,82 +665,89 @@ void send_command(char *command)
 int swap2done = 0;
 
 int boardtagclear = 0;
-void clear_board_tag() {
-	if (boardtagclear == 0) {
+void clear_board_tag()
+{
+	if (boardtagclear == 0)
+	{
 		boardtagclear = 1;
 		memset(boardtag, 0, sizeof(boardtag));
 		memset(boardtext, 0, sizeof(boardtext));
 	}
 }
 
-typedef struct {
-    double r;       // a fraction between 0 and 1
-    double g;       // a fraction between 0 and 1
-    double b;       // a fraction between 0 and 1
+typedef struct
+{
+	double r; // a fraction between 0 and 1
+	double g; // a fraction between 0 and 1
+	double b; // a fraction between 0 and 1
 } rgb;
 
-typedef struct {
-    double h;       // angle in degrees
-    double s;       // a fraction between 0 and 1
-    double v;       // a fraction between 0 and 1
+typedef struct
+{
+	double h; // angle in degrees
+	double s; // a fraction between 0 and 1
+	double v; // a fraction between 0 and 1
 } hsv;
 
 rgb hsv2rgb(hsv in)
 {
-    double      hh, p, q, t, ff;
-    long        i;
-    rgb         out;
+	double hh, p, q, t, ff;
+	long i;
+	rgb out;
 
-    if(in.s <= 0.0) {       // < is bogus, just shuts up warnings
-        out.r = in.v;
-        out.g = in.v;
-        out.b = in.v;
-        return out;
-    }
-    hh = in.h;
-    if(hh >= 360.0) hh = 0.0;
-    hh /= 60.0;
-    i = (long)hh;
-    ff = hh - i;
-    p = in.v * (1.0 - in.s);
-    q = in.v * (1.0 - (in.s * ff));
-    t = in.v * (1.0 - (in.s * (1.0 - ff)));
+	if (in.s <= 0.0)
+	{ // < is bogus, just shuts up warnings
+		out.r = in.v;
+		out.g = in.v;
+		out.b = in.v;
+		return out;
+	}
+	hh = in.h;
+	if (hh >= 360.0)
+		hh = 0.0;
+	hh /= 60.0;
+	i = (long)hh;
+	ff = hh - i;
+	p = in.v * (1.0 - in.s);
+	q = in.v * (1.0 - (in.s * ff));
+	t = in.v * (1.0 - (in.s * (1.0 - ff)));
 
-    switch(i) {
-    case 0:
-        out.r = in.v;
-        out.g = t;
-        out.b = p;
-        break;
-    case 1:
-        out.r = q;
-        out.g = in.v;
-        out.b = p;
-        break;
-    case 2:
-        out.r = p;
-        out.g = in.v;
-        out.b = t;
-        break;
+	switch (i)
+	{
+	case 0:
+		out.r = in.v;
+		out.g = t;
+		out.b = p;
+		break;
+	case 1:
+		out.r = q;
+		out.g = in.v;
+		out.b = p;
+		break;
+	case 2:
+		out.r = p;
+		out.g = in.v;
+		out.b = t;
+		break;
 
-    case 3:
-        out.r = p;
-        out.g = q;
-        out.b = in.v;
-        break;
-    case 4:
-        out.r = t;
-        out.g = p;
-        out.b = in.v;
-        break;
-    case 5:
-    default:
-        out.r = in.v;
-        out.g = p;
-        out.b = q;
-        break;
-    }
-    return out;     
+	case 3:
+		out.r = p;
+		out.g = q;
+		out.b = in.v;
+		break;
+	case 4:
+		out.r = t;
+		out.g = p;
+		out.b = in.v;
+		break;
+	case 5:
+	default:
+		out.r = in.v;
+		out.g = p;
+		out.b = q;
+		break;
+	}
+	return out;
 }
 
 int losssaturation = 0;
@@ -639,13 +755,15 @@ int winsaturation = 0;
 int minsaturation = 0;
 int maxsaturation = 0;
 int colorvalue = 100;
-const char* winrate2colorstr(int winrate) {
+const char *winrate2colorstr(int winrate)
+{
 	static char color_buf[10] = "#";
-	hsv hsv_color = { 
-		(100 - winrate) * (180 / 100.0), 
-		(winrate <= 0 ? losssaturation : winrate >= 100 ? winsaturation : minsaturation + (maxsaturation - minsaturation) * (winrate / 100.0)) * 0.01,
-		colorvalue * 0.01
-	};
+	hsv hsv_color = {
+		(100 - winrate) * (180 / 100.0),
+		(winrate <= 0 ? losssaturation : winrate >= 100 ? winsaturation
+														: minsaturation + (maxsaturation - minsaturation) * (winrate / 100.0)) *
+			0.01,
+		colorvalue * 0.01};
 	rgb rgb_color = hsv2rgb(hsv_color);
 	sprintf(color_buf + 1, "%02X", (int)(rgb_color.r * 255));
 	sprintf(color_buf + 3, "%02X", (int)(rgb_color.g * 255));
@@ -653,8 +771,8 @@ const char* winrate2colorstr(int winrate) {
 	return color_buf;
 }
 
-int refreshboardflag = 0; //it is set to 1 when making the 5th move under soosorv rule, otherwise, 0
-int refreshboardflag2 = 0; //it is set to 1 when refreshboardflag has been set to 1
+int refreshboardflag = 0;  // it is set to 1 when making the 5th move under soosorv rule, otherwise, 0
+int refreshboardflag2 = 0; // it is set to 1 when refreshboardflag has been set to 1
 void refresh_board_area(int x0, int y0, int x1, int y1)
 {
 	for (int i = y0; i < y1; i++)
@@ -667,16 +785,22 @@ void refresh_board_area(int x0, int y0, int x1, int y1)
 					continue;
 
 				int f = 0;
-				if (inforule == 2 && (computerside & 1) == 0 && piecenum % 2 == 0 && forbid[i][j] && isgameover == 0 && isthinking == 0 && showforbidden) f = 2;
+				if (inforule == 2 && (computerside & 1) == 0 && piecenum % 2 == 0 && forbid[i][j] && isgameover == 0 && isthinking == 0 && showforbidden)
+					f = 2;
 				if (f == 0)
 				{
-					if (boardblock[i][j]) f = 10;
+					if (boardblock[i][j])
+						f = 10;
 					else if (showanalysis)
 					{
-						if (boardlose[i][j]) f = 7;
-						else if (i == boardbestY && j == boardbestX) f = 8;
-						else if (boardpos[i][j] == 1) f = 9;
-						else if (boardpos[i][j] == 2) f = 11;
+						if (boardlose[i][j])
+							f = 7;
+						else if (i == boardbestY && j == boardbestX)
+							f = 8;
+						else if (boardpos[i][j] == 1)
+							f = 9;
+						else if (boardpos[i][j] == 2)
+							f = 11;
 					}
 					if (f == 0 && usedatabase && showdatabase)
 					{
@@ -707,11 +831,11 @@ void refresh_board_area(int x0, int y0, int x1, int y1)
 						y = 0;
 						x = 1;
 					}
-					
+
 					int W = gdk_pixbuf_get_width(pixbufboard[y][x]);
 					int H = gdk_pixbuf_get_height(pixbufboard[y][x]);
-					const char* color = piecenum % 2 ? "#FFFFFF" : "#000000";
-					const char* weight = "normal";
+					const char *color = piecenum % 2 ? "#FFFFFF" : "#000000";
+					const char *weight = "normal";
 
 					if (showboardtext && boardtext[i][j][0])
 					{
@@ -725,7 +849,7 @@ void refresh_board_area(int x0, int y0, int x1, int y1)
 						continue;
 					}
 
-					#define UPPERCASE_TAG(tag) ((tag) == 'w' ? 'W' : ((tag) == 'l' ? 'L' : ((tag) == 'd' ? 'D' : (tag))))
+#define UPPERCASE_TAG(tag) ((tag) == 'w' ? 'W' : ((tag) == 'l' ? 'L' : ((tag) == 'd' ? 'D' : (tag))))
 					int tag = boardtag[i][j];
 					if (tag < 128)
 					{
@@ -753,30 +877,38 @@ void refresh_board_area(int x0, int y0, int x1, int y1)
 						else
 							sprintf(n, "%c%c%c%c", first = UPPERCASE_TAG(tag / 16777216), tag / 65536 % 256, tag / 256 % 256, tag % 256), scale = 0.9f;
 
-						if (first == 'W' || first == 'L') {
+						if (first == 'W' || first == 'L')
+						{
 							if (first == 'W')
 								color = winrate2colorstr(100), weight = "bold", scale *= 0.98f;
 							else
 								color = winrate2colorstr(0), scale *= 0.95f;
 
-							int step = n[1] == '*' && n[2] == 0 ? 0 : atoi(n+1);
-							if (step == 0) n[1] = '*', n[2] = 0;
-							if (step >= 0 && step < 100) {
+							int step = n[1] == '*' && n[2] == 0 ? 0 : atoi(n + 1);
+							if (step == 0)
+								n[1] = '*', n[2] = 0;
+							if (step >= 0 && step < 100)
+							{
 								// use cached Win/Lose pixbuf
 								int idx = step + 100 * (first == 'L') + 128;
-								if (pixbufboardchar[y][x][idx][piecenum % 2] == NULL) {
+								if (pixbufboardchar[y][x][idx][piecenum % 2] == NULL)
+								{
 									pixbufboardchar[y][x][idx][piecenum % 2] = draw_overlay_scaled(pixbufboard[y][x], W, H, n, color, weight, scale);
 								}
 								gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]), pixbufboardchar[y][x][idx][piecenum % 2]);
 								continue;
 							}
-						} else if (tag % 256 == '%') {
+						}
+						else if (tag % 256 == '%')
+						{
 							weight = "bold", scale *= 0.98f;
 							int winrate = atoi(n);
-							if (winrate >= 0 && winrate < 100) {
+							if (winrate >= 0 && winrate < 100)
+							{
 								// use cached Winrate pixbuf
 								int idx = winrate + 100 * 2 + 128;
-								if (pixbufboardchar[y][x][idx][piecenum % 2] == NULL) {
+								if (pixbufboardchar[y][x][idx][piecenum % 2] == NULL)
+								{
 									color = winrate2colorstr(max(winrate, 1)); // use winrate=1 at least
 									pixbufboardchar[y][x][idx][piecenum % 2] = draw_overlay_scaled(pixbufboard[y][x], W, H, n, color, weight, scale);
 								}
@@ -797,7 +929,8 @@ void refresh_board_area(int x0, int y0, int x1, int y1)
 				int x, y;
 				int bn = boardnumber[i][j];
 				int bz = 3 + board[i][j] - 1;
-				if(movepath[piecenum-1]/boardsizew == i && movepath[piecenum-1]%boardsizew == j) f = 2;
+				if (movepath[piecenum - 1] / boardsizew == i && movepath[piecenum - 1] % boardsizew == j)
+					f = 2;
 				if (refreshboardflag == 1)
 				{
 					if (specialrule == 3)
@@ -820,35 +953,35 @@ void refresh_board_area(int x0, int y0, int x1, int y1)
 						}
 					}
 				}
-				
-				if(shownumber)
+
+				if (shownumber)
 				{
-					y = imgtypeboard[i][j]%9;
+					y = imgtypeboard[i][j] % 9;
 					x = bz;
 					int W = gdk_pixbuf_get_width(pixbufboard[y][x]);
 					int H = gdk_pixbuf_get_height(pixbufboard[y][x]);
-					if(pixbufboardnumber[y][x][bn][(f || _f)?1:0] == NULL)
+					if (pixbufboardnumber[y][x][bn][(f || _f) ? 1 : 0] == NULL)
 					{
 						char n[10];
 						sprintf(n, "%d", bn);
-						if(f || _f)
+						if (f || _f)
 						{
 							pixbufboardnumber[y][x][bn][1] = draw_overlay(pixbufboard[y][x], W, H, n, "#FF0000");
 						}
 						else
 						{
-							if(boardnumber[i][j] % 2 == 1)
+							if (boardnumber[i][j] % 2 == 1)
 								pixbufboardnumber[y][x][bn][0] = draw_overlay(pixbufboard[y][x], W, H, n, "#FFFFFF");
 							else
 								pixbufboardnumber[y][x][bn][0] = draw_overlay(pixbufboard[y][x], W, H, n, "#000000");
 						}
 					}
-					gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]), pixbufboardnumber[y][x][bn][(f || _f)?1:0]);
+					gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]), pixbufboardnumber[y][x][bn][(f || _f) ? 1 : 0]);
 				}
 				else
 				{
-					y = imgtypeboard[i][j]%9;
-					x = f+_f+bz;
+					y = imgtypeboard[i][j] % 9;
+					x = f + _f + bz;
 					gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]), pixbufboard[y][x]);
 				}
 			}
@@ -865,9 +998,10 @@ void update_textpos()
 	char posstring[1024];
 	int offset, accumulatedOffset = 0;
 	sprintf(posstring, "");
-	for (int i = 0; i < piecenum; i++) {
-		sprintf(posstring + accumulatedOffset, "%c%d%n", movepath[i] % boardsizew + 'a', 
-			    boardsizeh - 1 - movepath[i] / boardsizew + 1, &offset);
+	for (int i = 0; i < piecenum; i++)
+	{
+		sprintf(posstring + accumulatedOffset, "%c%d%n", movepath[i] % boardsizew + 'a',
+				boardsizeh - 1 - movepath[i] / boardsizew + 1, &offset);
 		accumulatedOffset += offset;
 	}
 	gtk_text_buffer_set_text(buffertextpos, posstring, -1);
@@ -875,60 +1009,66 @@ void update_textpos()
 
 int is_legal_move(int y, int x)
 {
-	return y>=0 && x>=0 && y<boardsizeh && x<boardsizew && board[y][x] == 0;
+	return y >= 0 && x >= 0 && y < boardsizeh && x < boardsizew && board[y][x] == 0;
 }
 void make_move(int y, int x)
 {
 	int i, j, k;
 
-	board[y][x] = piecenum%2+1;
-	boardnumber[y][x] = piecenum+1;
-	if(movepath[piecenum] != y*boardsizew+x)
+	board[y][x] = piecenum % 2 + 1;
+	boardnumber[y][x] = piecenum + 1;
+	if (movepath[piecenum] != y * boardsizew + x)
 	{
-		movepath[piecenum] = y*boardsizew+x;
-		for(i=piecenum+1; i<MAX_SIZE*MAX_SIZE; i++) movepath[i] = -1;
+		movepath[piecenum] = y * boardsizew + x;
+		for (i = piecenum + 1; i < MAX_SIZE * MAX_SIZE; i++)
+			movepath[i] = -1;
 	}
 
-	piecenum ++;
-	if(piecenum == boardsizeh*boardsizew) isgameover = 1;
+	piecenum++;
+	if (piecenum == boardsizeh * boardsizew)
+		isgameover = 1;
 
 	memset(bestline, 0, sizeof(bestline));
 
 	boardbestX = boardbestY = -1;
 	memset(boardlose, 0, sizeof(boardlose));
 	memset(boardpos, 0, sizeof(boardpos));
-	
+
 	drawpieceonly = usedatabase;
 	refresh_board();
 	drawpieceonly = 0;
 
 	update_textpos();
 
-	for(i=0; i<8; i+=2)
+	for (i = 0; i < 8; i += 2)
 	{
 		int ny, nx;
 		k = 1;
 		ny = y;
 		nx = x;
-		for(j=1; j<6; j++)
+		for (j = 1; j < 6; j++)
 		{
 			ny += movy[i];
 			nx += movx[i];
-			if(nx<0 || ny<0 || nx>=boardsizew || ny>=boardsizeh) break;
-			if(board[ny][nx] != board[y][x]) break;
-			k ++;
+			if (nx < 0 || ny < 0 || nx >= boardsizew || ny >= boardsizeh)
+				break;
+			if (board[ny][nx] != board[y][x])
+				break;
+			k++;
 		}
 		ny = y;
 		nx = x;
-		for(j=1; j<6; j++)
+		for (j = 1; j < 6; j++)
 		{
 			ny -= movy[i];
 			nx -= movx[i];
-			if(nx<0 || ny<0 || nx>=boardsizew || ny>=boardsizeh) break;
-			if(board[ny][nx] != board[y][x]) break;
-			k ++;
+			if (nx < 0 || ny < 0 || nx >= boardsizew || ny >= boardsizeh)
+				break;
+			if (board[ny][nx] != board[y][x])
+				break;
+			k++;
 		}
-		if(k==5 || (k>5 && inforule != 1))
+		if (k == 5 || (k > 5 && inforule != 1))
 		{
 			isgameover = 1;
 			break;
@@ -946,7 +1086,7 @@ void show_database()
 		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(command, "%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew);
+					movepath[i] % boardsizew);
 			send_command(command);
 		}
 		sprintf(command, "done\n");
@@ -957,7 +1097,7 @@ void show_forbid()
 {
 	int i;
 	char command[80];
-	if((computerside&1) || (piecenum%2))
+	if ((computerside & 1) || (piecenum % 2))
 	{
 		memset(forbid, 0, sizeof(forbid));
 		return;
@@ -966,10 +1106,10 @@ void show_forbid()
 	send_command(command);
 	sprintf(command, "yxboard\n");
 	send_command(command);
-	for(i=0; i<piecenum; i++)
+	for (i = 0; i < piecenum; i++)
 	{
-		sprintf(command, "%d,%d,%d\n", movepath[i]/boardsizew,
-			movepath[i]%boardsizew, piecenum%2==i%2 ? 1 : 2);
+		sprintf(command, "%d,%d,%d\n", movepath[i] / boardsizew,
+				movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 		send_command(command);
 	}
 	sprintf(command, "done\n");
@@ -983,16 +1123,16 @@ void show_dialog_undo_warning_query(GtkWidget *window)
 	GtkWidget *dialog;
 	gint result;
 	dialog = gtk_message_dialog_new(GTK_WINDOW(window), GTK_DIALOG_DESTROY_WITH_PARENT,
-		GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, language==0?"The operation will stop the calculation. Do you want to continue?":_T(clanguage[12]));
+									GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, language == 0 ? "The operation will stop the calculation. Do you want to continue?" : _T(clanguage[12]));
 	gtk_window_set_title(GTK_WINDOW(dialog), "Yixin");
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
-	switch(result)
+	switch (result)
 	{
-		case GTK_RESPONSE_YES:
-			change_piece(window, (gpointer)1);
-			break;
-		case GTK_RESPONSE_NO:
-			break;
+	case GTK_RESPONSE_YES:
+		change_piece(window, (gpointer)1);
+		break;
+	case GTK_RESPONSE_NO:
+		break;
 	}
 	gtk_widget_destroy(dialog);
 }
@@ -1007,10 +1147,10 @@ void show_dialog_swap_query2(GtkWidget *window)
 
 	sprintf(msg, "%s", language == 0 ? "Choose one option" : _T(clanguage[107]));
 	dialog = gtk_dialog_new_with_buttons(msg, GTK_WINDOW(windowmain), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-		language == 0 ? "Stay with white" : _T(clanguage[108]), 1,
-		language == 0 ? "Swap" : _T(clanguage[109]), 2,
-		language == 0 ? "Add 2 more pieces" : _T(clanguage[110]), 3,
-		NULL);
+										 language == 0 ? "Stay with white" : _T(clanguage[108]), 1,
+										 language == 0 ? "Swap" : _T(clanguage[109]), 2,
+										 language == 0 ? "Add 2 more pieces" : _T(clanguage[110]), 3,
+										 NULL);
 	gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
 
@@ -1020,7 +1160,7 @@ void show_dialog_swap_query2(GtkWidget *window)
 		swap2done = 1;
 		break;
 	case 2:
-		//swap
+		// swap
 		timerhumanincrement += increment;
 		if (computerside == 2)
 		{
@@ -1032,7 +1172,10 @@ void show_dialog_swap_query2(GtkWidget *window)
 			change_side_menu(-1, NULL);
 			change_side_menu(2, NULL);
 		}
-		if (language) printf_log(clanguage[14]); else printf_log("Swap");
+		if (language)
+			printf_log(clanguage[14]);
+		else
+			printf_log("Swap");
 		printf_log("\n");
 
 		isthinking = 1;
@@ -1040,24 +1183,25 @@ void show_dialog_swap_query2(GtkWidget *window)
 		isneedrestart = 0;
 		sprintf(command, "INFO time_left %lld\n", timeoutmatch - timercomputermatch + timercomputerincrement);
 		send_command(command);
-		if (hashautoclear) send_command("yxhashclear\n");
+		if (hashautoclear)
+			send_command("yxhashclear\n");
 		sprintf(command, "start %d %d\n", boardsizew, boardsizeh);
 		send_command(command);
 		sprintf(command, "board\n");
 		send_command(command);
-		for (i = 0; i<piecenum; i++)
+		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(command, "%d,%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+					movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 			send_command(command);
 		}
 		sprintf(command, "done\n");
 		send_command(command);
-		
+
 		swap2done = 1;
 		break;
 	case 3:
-		//should do nothing
+		// should do nothing
 		break;
 	}
 	gtk_widget_destroy(dialog);
@@ -1073,112 +1217,116 @@ void show_dialog_swap_query(GtkWidget *window)
 	else
 		sprintf(msg, "%s", language == 0 ? "Swap?" : _T(clanguage[13]));
 	dialog = gtk_message_dialog_new(GTK_WINDOW(window), GTK_DIALOG_DESTROY_WITH_PARENT,
-		GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, msg);
+									GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, msg);
 	gtk_window_set_title(GTK_WINDOW(dialog), "Yixin");
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
 
-	switch(result)
+	switch (result)
 	{
-		case GTK_RESPONSE_YES:
-			timerhumanincrement += increment;
-			if (specialrule == 4)
+	case GTK_RESPONSE_YES:
+		timerhumanincrement += increment;
+		if (specialrule == 4)
+		{
+			int i;
+			char command[80];
+			isthinking = 1;
+			clock_timer_change_status(1);
+			isneedrestart = 0;
+			sprintf(command, "INFO time_left %lld\n", timeoutmatch - timercomputermatch + timercomputerincrement);
+			send_command(command);
+			if (hashautoclear)
+				send_command("yxhashclear\n");
+			sprintf(command, "start %d %d\n", boardsizew, boardsizeh);
+			send_command(command);
+			sprintf(command, "board\n");
+			send_command(command);
+			for (i = 0; i < piecenum; i++)
+			{
+				sprintf(command, "%d,%d,%d\n", movepath[i] / boardsizew,
+						movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+				send_command(command);
+			}
+			sprintf(command, "done\n");
+			send_command(command);
+		}
+		else if (specialrule == 3)
+		{
+			isneedrestart = 1;
+			if (computerside == 2)
+			{
+				change_side_menu(1, NULL);
+				change_side_menu(-2, NULL);
+			}
+			else
+			{
+				change_side_menu(-1, NULL);
+				change_side_menu(2, NULL);
+			}
+			if (piecenum == 3)
 			{
 				int i;
 				char command[80];
-				isthinking = 1;
-				clock_timer_change_status(1);
-				isneedrestart = 0;
-				sprintf(command, "INFO time_left %lld\n", timeoutmatch - timercomputermatch + timercomputerincrement);
-				send_command(command);
-				if (hashautoclear) send_command("yxhashclear\n");
-				sprintf(command, "start %d %d\n", boardsizew, boardsizeh);
-				send_command(command);
-				sprintf(command, "board\n");
-				send_command(command);
-				for (i = 0; i<piecenum; i++)
+				send_command("yxsoosorvstep3\n");
+				for (i = 0; i < piecenum; i++)
 				{
-					sprintf(command, "%d,%d,%d\n", movepath[i] / boardsizew,
-						movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+					sprintf(command, "%d,%d\n", movepath[i] / boardsizew,
+							movepath[i] % boardsizew);
 					send_command(command);
 				}
-				sprintf(command, "done\n");
+				send_command("done\n");
+			}
+			else //==4
+			{
+				int i;
+				char command[80];
+				sprintf(command, "yxsoosorvstep5 %d\n", move5N);
 				send_command(command);
-			}
-			else if (specialrule == 3)
-			{
-				isneedrestart = 1;
-				if (computerside == 2)
+				for (i = 0; i < piecenum; i++)
 				{
-					change_side_menu(1, NULL);
-					change_side_menu(-2, NULL);
-				}
-				else
-				{
-					change_side_menu(-1, NULL);
-					change_side_menu(2, NULL);
-				}
-				if (piecenum == 3)
-				{
-					int i;
-					char command[80];
-					send_command("yxsoosorvstep3\n");
-					for (i = 0; i < piecenum; i++)
-					{
-						sprintf(command, "%d,%d\n", movepath[i] / boardsizew,
+					sprintf(command, "%d,%d\n", movepath[i] / boardsizew,
 							movepath[i] % boardsizew);
-						send_command(command);
-					}
-					send_command("done\n");
-				}
-				else //==4
-				{
-					int i;
-					char command[80];
-					sprintf(command, "yxsoosorvstep5 %d\n", move5N);
 					send_command(command);
-					for (i = 0; i < piecenum; i++)
-					{
-						sprintf(command, "%d,%d\n", movepath[i] / boardsizew,
-							movepath[i] % boardsizew);
-						send_command(command);
-					}
-					send_command("done\n");
 				}
+				send_command("done\n");
 			}
-			else if(specialrule == 2)
+		}
+		else if (specialrule == 2)
+		{
+			isneedrestart = 1;
+			make_move(4, 5);
+			if (computerside == 2)
 			{
-				isneedrestart = 1;
-				make_move(4, 5);
-				if(computerside == 2)
-				{
-					change_side_menu(1, NULL);
-					change_side_menu(-2, NULL);
-				}
-				else
-				{
-					change_side_menu(-1, NULL);
-					change_side_menu(2, NULL);
-				}
+				change_side_menu(1, NULL);
+				change_side_menu(-2, NULL);
 			}
-			if(language) printf_log(clanguage[14]); else printf_log("Swap");
-			printf_log("\n");
-			break;
-		case GTK_RESPONSE_NO:
-			if (specialrule == 4)
+			else
 			{
-				if (computerside == 2)
-				{
-					change_side_menu(1, NULL);
-					change_side_menu(-2, NULL);
-				}
-				else
-				{
-					change_side_menu(-1, NULL);
-					change_side_menu(2, NULL);
-				}
+				change_side_menu(-1, NULL);
+				change_side_menu(2, NULL);
 			}
-			printf_log("\n");
-			break;
+		}
+		if (language)
+			printf_log(clanguage[14]);
+		else
+			printf_log("Swap");
+		printf_log("\n");
+		break;
+	case GTK_RESPONSE_NO:
+		if (specialrule == 4)
+		{
+			if (computerside == 2)
+			{
+				change_side_menu(1, NULL);
+				change_side_menu(-2, NULL);
+			}
+			else
+			{
+				change_side_menu(-1, NULL);
+				change_side_menu(2, NULL);
+			}
+		}
+		printf_log("\n");
+		break;
 	}
 	gtk_widget_destroy(dialog);
 }
@@ -1188,11 +1336,11 @@ void show_dialog_swap_info(GtkWidget *window)
 	GtkWidget *dialog;
 	gint result;
 	dialog = gtk_message_dialog_new(GTK_WINDOW(window), GTK_DIALOG_DESTROY_WITH_PARENT,
-		GTK_MESSAGE_INFO, GTK_BUTTONS_OK, language==0?"Swap":_T(clanguage[15]));
+									GTK_MESSAGE_INFO, GTK_BUTTONS_OK, language == 0 ? "Swap" : _T(clanguage[15]));
 	gtk_window_set_title(GTK_WINDOW(dialog), "Yixin");
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
 	isneedrestart = 1;
-	if(computerside == 2)
+	if (computerside == 2)
 	{
 		change_side_menu(1, NULL);
 		change_side_menu(-2, NULL);
@@ -1210,7 +1358,7 @@ void show_dialog_timeout(GtkWidget *window)
 	GtkWidget *dialog;
 	gint result;
 	dialog = gtk_message_dialog_new(GTK_WINDOW(window), GTK_DIALOG_DESTROY_WITH_PARENT,
-		GTK_MESSAGE_INFO, GTK_BUTTONS_OK, language == 0 ? "Time out!" : _T(clanguage[105]));
+									GTK_MESSAGE_INFO, GTK_BUTTONS_OK, language == 0 ? "Time out!" : _T(clanguage[105]));
 	gtk_window_set_title(GTK_WINDOW(dialog), "Yixin");
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
 	gtk_widget_destroy(dialog);
@@ -1221,7 +1369,7 @@ void show_dialog_forbidden_info(GtkWidget *window)
 	GtkWidget *dialog;
 	gint result;
 	dialog = gtk_message_dialog_new(GTK_WINDOW(window), GTK_DIALOG_DESTROY_WITH_PARENT,
-		GTK_MESSAGE_INFO, GTK_BUTTONS_OK, language == 0 ? "Forbidden Move" : _T(clanguage[98]));
+									GTK_MESSAGE_INFO, GTK_BUTTONS_OK, language == 0 ? "Forbidden Move" : _T(clanguage[98]));
 	gtk_window_set_title(GTK_WINDOW(dialog), "Yixin");
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
 	gtk_widget_destroy(dialog);
@@ -1232,7 +1380,7 @@ void show_dialog_illegal_opening(GtkWidget *window)
 	GtkWidget *dialog;
 	gint result;
 	dialog = gtk_message_dialog_new(GTK_WINDOW(window), GTK_DIALOG_DESTROY_WITH_PARENT,
-		GTK_MESSAGE_INFO, GTK_BUTTONS_OK, language==0?"Illegal Opening": _T(clanguage[16]));
+									GTK_MESSAGE_INFO, GTK_BUTTONS_OK, language == 0 ? "Illegal Opening" : _T(clanguage[16]));
 	gtk_window_set_title(GTK_WINDOW(dialog), "Yixin");
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
 	isneedrestart = 1;
@@ -1253,13 +1401,13 @@ void show_dialog_boardtext(GtkWidget *window, int x, int y)
 	gint result;
 
 	dialog = gtk_dialog_new_with_buttons("Board Text", GTK_WINDOW(windowmain), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, "Delete", 2, "OK", 1, NULL);
-	gtk_window_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
+	gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
 	gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
 
-	table = gtk_table_new(1, 2, FALSE);
-	gtk_table_set_row_spacings(GTK_TABLE(table), 0); /* set the row distance between elements to be 0 */
-	gtk_table_set_col_spacings(GTK_TABLE(table), 0); /* set the column distance between elements to be 0 */
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), table, FALSE, FALSE, 3);
+	table = gtk_grid_new();
+	gtk_grid_set_row_spacing(GTK_GRID(table), 0);
+	gtk_grid_set_column_spacing(GTK_GRID(table), 0);
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), table, FALSE, FALSE, 3);
 
 	label[0] = gtk_label_new(language == 0 ? "Input board text:" : _T(clanguage[114]));
 	entry[0] = gtk_entry_new();
@@ -1269,33 +1417,33 @@ void show_dialog_boardtext(GtkWidget *window, int x, int y)
 	gtk_entry_set_text(GTK_ENTRY(entry[0]), text);
 	g_free(t_utf8);
 
-	gtk_table_attach_defaults(GTK_TABLE(table), label[0], 0, 1, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(table), entry[0], 1, 2, 0, 1);
+	gtk_grid_attach(GTK_GRID(table), label[0], 0, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(table), entry[0], 1, 0, 1, 1);
 
 	gtk_widget_show_all(dialog);
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
 	if (result == 1 || result == 2)
 	{
 		ptext = gtk_entry_get_text(GTK_ENTRY(entry[0]));
-		if (ptext[0] == '\0' || result == 2) 
+		if (ptext[0] == '\0' || result == 2)
 		{
 			sprintf(command, "yxeditlabeldatabase %d,%d \n", y, x); // delete for empty text
 		}
 		else
 		{
 			sscanf(ptext, "%s", text);
-			char* t = __invT(text);
+			char *t = __invT(text);
 			sprintf(command, "yxeditlabeldatabase %d,%d %s\n", y, x, t);
 			g_free(t);
 		}
-		
-		send_command(command); 
-		for (int i = 0; i < piecenum; i++) 
+
+		send_command(command);
+		for (int i = 0; i < piecenum; i++)
 		{
-			sprintf(command, "%d,%d\n", movepath[i] / boardsizew, movepath[i] % boardsizew); 
+			sprintf(command, "%d,%d\n", movepath[i] / boardsizew, movepath[i] % boardsizew);
 			send_command(command);
 		}
-		send_command("done\n"); 
+		send_command("done\n");
 	}
 	gtk_widget_destroy(dialog);
 }
@@ -1307,10 +1455,10 @@ gboolean show_dbdelall_query()
 
 	GtkWidget *dialog;
 	gint result;
-	dialog = gtk_message_dialog_new(GTK_WINDOW(windowmain), 
-		GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL, 
-		GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, 
-		language==0 ? "Are your sure to delete all branches?" : _T(clanguage[116]));
+	dialog = gtk_message_dialog_new(GTK_WINDOW(windowmain),
+									GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
+									GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
+									language == 0 ? "Are your sure to delete all branches?" : _T(clanguage[116]));
 	gtk_window_set_title(GTK_WINDOW(dialog), "Confirm deleting all branches");
 	gtk_widget_show_all(dialog);
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
@@ -1325,21 +1473,24 @@ gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, Gd
 	char command[80];
 	if (!isthinking && event->type == GDK_BUTTON_PRESS)
 	{
-		if(event->button == 1 || event->button == 2)
+		if (event->button == 1 || event->button == 2)
 		{
 			size = gdk_pixbuf_get_width(pixbufboard[0][0]);
-			if(event->x - imageboard[0][0]->allocation.x < 0 || event->y - imageboard[0][0]->allocation.y < 0)
+
+			x = (int)(event->x);
+			y = (int)(event->y);
+			if (x < 0 || y < 0)
 			{
 				x = y = -1;
 			}
 			else
 			{
-				x = (int)((event->x - imageboard[0][0]->allocation.x)/size);
-				y = (int)((event->y - imageboard[0][0]->allocation.y)/size);
+				x = (int)(x / size);
+				y = (int)(y / size);
 			}
-			if(x>=0 && x<boardsizew && y>=0 && y<boardsizeh && !isgameover)
+			if (x >= 0 && x < boardsizew && y >= 0 && y < boardsizeh && !isgameover)
 			{
-				if (usedatabase && (isctrlpressed || event->button == 2) && board[y][x] == 0 && (piecenum%2==1 || !forbid[y][x]))
+				if (usedatabase && (isctrlpressed || event->button == 2) && board[y][x] == 0 && (piecenum % 2 == 1 || !forbid[y][x]))
 				{
 					show_dialog_boardtext(widget, x, y);
 					show_database();
@@ -1364,15 +1515,16 @@ gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, Gd
 							isneedrestart = 0;
 							sprintf(command, "INFO time_left %lld\n", timeoutmatch - timercomputermatch + timercomputerincrement);
 							send_command(command);
-							if (hashautoclear) send_command("yxhashclear\n");
+							if (hashautoclear)
+								send_command("yxhashclear\n");
 							sprintf(command, "start %d %d\n", boardsizew, boardsizeh);
 							send_command(command);
 							sprintf(command, "yxboard\n");
 							send_command(command);
-							for (i = 0; i<piecenum; i++)
+							for (i = 0; i < piecenum; i++)
 							{
 								sprintf(command, "%d,%d,%d\n", movepath[i] / boardsizew,
-									movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+										movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 								send_command(command);
 							}
 							sprintf(command, "done\n");
@@ -1394,15 +1546,16 @@ gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, Gd
 							isneedrestart = 0;
 							sprintf(command, "INFO time_left %lld\n", timeoutmatch - timercomputermatch + timercomputerincrement);
 							send_command(command);
-							if (hashautoclear) send_command("yxhashclear\n");
+							if (hashautoclear)
+								send_command("yxhashclear\n");
 							sprintf(command, "start %d %d\n", boardsizew, boardsizeh);
 							send_command(command);
 							sprintf(command, "yxboard\n");
 							send_command(command);
-							for (i = 0; i<piecenum; i++)
+							for (i = 0; i < piecenum; i++)
 							{
 								sprintf(command, "%d,%d,%d\n", movepath[i] / boardsizew,
-									movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+										movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 								send_command(command);
 							}
 							sprintf(command, "done\n");
@@ -1411,11 +1564,11 @@ gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, Gd
 						}
 					}
 				}
-				else if(!refreshboardflag && ((specialrule!=1 && specialrule!=3) || piecenum>=3 || piecenum==0) && (((computerside&1)&&piecenum%2==0) || ((computerside&2)&&piecenum%2==1)))
+				else if (!refreshboardflag && ((specialrule != 1 && specialrule != 3) || piecenum >= 3 || piecenum == 0) && (((computerside & 1) && piecenum % 2 == 0) || ((computerside & 2) && piecenum % 2 == 1)))
 				{
 					int i;
-					//the first move of `swap after 1st move' rule
-					if(specialrule == 2 && piecenum == 0 && computerside != 3)
+					// the first move of `swap after 1st move' rule
+					if (specialrule == 2 && piecenum == 0 && computerside != 3)
 					{
 						isneedrestart = 1;
 						make_move(2, 3);
@@ -1428,15 +1581,16 @@ gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, Gd
 						isneedrestart = 0;
 						sprintf(command, "INFO time_left %lld\n", timeoutmatch - timercomputermatch + timercomputerincrement);
 						send_command(command);
-						if (hashautoclear) send_command("yxhashclear\n");
+						if (hashautoclear)
+							send_command("yxhashclear\n");
 						sprintf(command, "start %d %d\n", boardsizew, boardsizeh);
 						send_command(command);
 						sprintf(command, "board\n");
 						send_command(command);
-						for(i=0; i<piecenum; i++)
+						for (i = 0; i < piecenum; i++)
 						{
-							sprintf(command, "%d,%d,%d\n", movepath[i]/boardsizew,
-								movepath[i]%boardsizew, piecenum%2==i%2 ? 1 : 2);
+							sprintf(command, "%d,%d,%d\n", movepath[i] / boardsizew,
+									movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 							send_command(command);
 						}
 						sprintf(command, "done\n");
@@ -1461,33 +1615,33 @@ gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, Gd
 					{
 						show_dialog_forbidden_info(widget);
 					}
-					else if (board[y][x] == 0 && (piecenum%2==1 || !forbid[y][x] || refreshboardflag))
+					else if (board[y][x] == 0 && (piecenum % 2 == 1 || !forbid[y][x] || refreshboardflag))
 					{
 						int i;
 						int flag = 0;
-						
+
 						make_move(y, x);
-						if(specialrule == 2 && piecenum == 1 && computerside != 0)
+						if (specialrule == 2 && piecenum == 1 && computerside != 0)
 						{
 							int _x, _y;
-							_x = min(x, boardsizew-1-x);
-							_y = min(y, boardsizeh-1-y);
-							//the condition for swapping under `swap after 1st move' rule
-							if((((_x==2&&_y==3)||(_x==3&&_y==2))&&rand()%2==1) || (_x>1 && _y>1 && _x+_y>5))
+							_x = min(x, boardsizew - 1 - x);
+							_y = min(y, boardsizeh - 1 - y);
+							// the condition for swapping under `swap after 1st move' rule
+							if ((((_x == 2 && _y == 3) || (_x == 3 && _y == 2)) && rand() % 2 == 1) || (_x > 1 && _y > 1 && _x + _y > 5))
 							{
 								show_dialog_swap_info(widget);
 							}
 						}
-						if(specialrule == 3 && piecenum == 3 && /*computerside != 0 &&*/ computerside != 1)
+						if (specialrule == 3 && piecenum == 3 && /*computerside != 0 &&*/ computerside != 1)
 						{
-							//check whether the current opening is one of the 26 standard openings
-							if(movepath[0]%boardsizew == boardsizew/2 && movepath[0]/boardsizew == boardsizeh/2 &&
-								movepath[1]%boardsizew <= boardsizew/2+1 && movepath[1]%boardsizew >= boardsizew/2-1 &&
-								movepath[1]/boardsizew <= boardsizeh/2+1 && movepath[1]/boardsizew >= boardsizeh/2-1 &&
-								movepath[2]%boardsizew <= boardsizew/2+2 && movepath[2]%boardsizew >= boardsizew/2-2 &&
-								movepath[2]/boardsizew <= boardsizeh/2+2 && movepath[2]/boardsizew >= boardsizeh/2-2)
+							// check whether the current opening is one of the 26 standard openings
+							if (movepath[0] % boardsizew == boardsizew / 2 && movepath[0] / boardsizew == boardsizeh / 2 &&
+								movepath[1] % boardsizew <= boardsizew / 2 + 1 && movepath[1] % boardsizew >= boardsizew / 2 - 1 &&
+								movepath[1] / boardsizew <= boardsizeh / 2 + 1 && movepath[1] / boardsizew >= boardsizeh / 2 - 1 &&
+								movepath[2] % boardsizew <= boardsizew / 2 + 2 && movepath[2] % boardsizew >= boardsizew / 2 - 2 &&
+								movepath[2] / boardsizew <= boardsizeh / 2 + 2 && movepath[2] / boardsizew >= boardsizeh / 2 - 2)
 							{
-								//do nothing
+								// do nothing
 							}
 							else
 							{
@@ -1504,7 +1658,7 @@ gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, Gd
 							for (i = 0; i < piecenum; i++)
 							{
 								sprintf(command, "%d,%d\n", movepath[i] / boardsizew,
-									movepath[i] % boardsizew);
+										movepath[i] % boardsizew);
 								send_command(command);
 							}
 							send_command("done\n");
@@ -1519,7 +1673,7 @@ gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, Gd
 							for (i = 0; i < piecenum; i++)
 							{
 								sprintf(command, "%d,%d\n", movepath[i] / boardsizew,
-									movepath[i] % boardsizew);
+										movepath[i] % boardsizew);
 								send_command(command);
 							}
 							send_command("done\n");
@@ -1547,13 +1701,13 @@ gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, Gd
 							for (i = 0; i < piecenum; i++)
 							{
 								sprintf(command, "%d,%d\n", movepath[i] / boardsizew,
-									movepath[i] % boardsizew);
+										movepath[i] % boardsizew);
 								send_command(command);
 							}
 							send_command("done\n");
 							flag = 1;
 						}
-						
+
 						show_forbid();
 						if (!isgameover && !flag && ((specialrule != 1 && specialrule != 3) || piecenum >= 3) && (((computerside & 1) && piecenum % 2 == 0) || ((computerside & 2) && piecenum % 2 == 1)))
 						{
@@ -1565,7 +1719,8 @@ gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, Gd
 								isneedrestart = 0;
 								sprintf(command, "INFO time_left %lld\n", timeoutmatch - timercomputermatch + timercomputerincrement);
 								send_command(command);
-								if (hashautoclear) send_command("yxhashclear\n");
+								if (hashautoclear)
+									send_command("yxhashclear\n");
 								sprintf(command, "start %d %d\n", boardsizew, boardsizeh);
 								send_command(command);
 								sprintf(command, "board\n");
@@ -1573,7 +1728,7 @@ gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, Gd
 								for (i = 0; i < piecenum; i++)
 								{
 									sprintf(command, "%d,%d,%d\n", movepath[i] / boardsizew,
-										movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+											movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 									send_command(command);
 								}
 								sprintf(command, "done\n");
@@ -1583,7 +1738,8 @@ gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, Gd
 							{
 								sprintf(command, "INFO time_left %lld\n", timeoutmatch - timercomputermatch + timercomputerincrement);
 								send_command(command);
-								if (hashautoclear) send_command("yxhashclear\n");
+								if (hashautoclear)
+									send_command("yxhashclear\n");
 								sprintf(command, "turn %d,%d\n", y, x);
 								send_command(command);
 								isthinking = 1;
@@ -1593,26 +1749,28 @@ gboolean on_button_press_windowmain(GtkWidget *widget, GdkEventButton *event, Gd
 					}
 					show_database();
 				}
-				return FALSE;
+				return TRUE;
 			}
 		}
 	}
 	if (event->type == GDK_BUTTON_PRESS && event->button == 3)
 	{
-		if(showwarning && isthinking)
+		if (showwarning && isthinking)
 			show_dialog_undo_warning_query(widget);
 		else
 			change_piece(widget, (gpointer)1);
+		return TRUE;
 	}
 	return FALSE; /* why FALSE? */
 }
 
 int is_integer(const char *str)
 {
-	while(*str)
+	while (*str)
 	{
-		if(*str < '0' || *str > '9') return 0;
-		str ++;
+		if (*str < '0' || *str > '9')
+			return 0;
+		str++;
 	}
 	return 1;
 }
@@ -1621,7 +1779,7 @@ void set_level(int x)
 {
 	gchar command[80];
 	levelchoice = x;
-	if(levelchoice == 1)
+	if (levelchoice == 1)
 	{
 		sprintf(command, "INFO timeout_turn %lld\n", timeoutturn);
 		send_command(command);
@@ -1629,7 +1787,7 @@ void set_level(int x)
 		send_command(command);
 		sprintf(command, "INFO time_left %lld\n", timeoutmatch - timercomputermatch + timercomputerincrement);
 		send_command(command);
-		sprintf(command, "INFO max_node %lld\n", maxnode); //now it should not be -1
+		sprintf(command, "INFO max_node %lld\n", maxnode); // now it should not be -1
 		send_command(command);
 		sprintf(command, "INFO max_depth %d\n", maxdepth);
 		send_command(command);
@@ -1638,7 +1796,7 @@ void set_level(int x)
 	}
 	else
 	{
-		switch(levelchoice)
+		switch (levelchoice)
 		{
 		case 0:
 			sprintf(command, "INFO max_node %d\n", -1);
@@ -1708,8 +1866,10 @@ void set_level(int x)
 void set_cautionfactor(int x)
 {
 	gchar command[80];
-	if(x < 0) x = 0;
-	if(x > CAUTION_NUM) x = CAUTION_NUM;
+	if (x < 0)
+		x = 0;
+	if (x > CAUTION_NUM)
+		x = CAUTION_NUM;
 	cautionfactor = x;
 	sprintf(command, "INFO caution_factor %d\n", cautionfactor);
 	send_command(command);
@@ -1718,8 +1878,9 @@ void set_cautionfactor(int x)
 void set_threadnum(int x)
 {
 	gchar command[80];
-	if(x < 1) x = 1;
-	//if(x > maxthreadnum) x = maxthreadnum;
+	if (x < 1)
+		x = 1;
+	// if(x > maxthreadnum) x = maxthreadnum;
 	threadnum = x;
 	sprintf(command, "INFO thread_num %d\n", threadnum);
 	send_command(command);
@@ -1728,18 +1889,22 @@ void set_threadnum(int x)
 void set_hashsize(int x)
 {
 	gchar command[80];
-	if(x < 0) x = 0;
-	if(x > maxhashsize) x = maxhashsize;
+	if (x < 0)
+		x = 0;
+	if (x > maxhashsize)
+		x = maxhashsize;
 	hashsize = x;
-	sprintf(command, "INFO hash_size %d\n", hashsize==0 ? 0 : (1<<hashsize));
+	sprintf(command, "INFO hash_size %d\n", hashsize == 0 ? 0 : (1 << hashsize));
 	send_command(command);
 }
 
 void set_pondering(int x)
 {
 	gchar command[80];
-	if (x < 0) x = 0;
-	if (x > 1) x = 1;
+	if (x < 0)
+		x = 0;
+	if (x > 1)
+		x = 1;
 	infopondering = x;
 	sprintf(command, "INFO pondering %d\n", infopondering);
 	send_command(command);
@@ -1748,8 +1913,10 @@ void set_pondering(int x)
 void setvcthread(int x)
 {
 	gchar command[80];
-	if (x < 0) x = 0;
-	if (x > 2) x = 2;
+	if (x < 0)
+		x = 0;
+	if (x > 2)
+		x = 2;
 	infovcthread = x;
 	sprintf(command, "INFO vcthread %d\n", infovcthread);
 	send_command(command);
@@ -1759,39 +1926,39 @@ void show_dialog_settings_custom_entry(GtkWidget *widget, gpointer data)
 {
 	static GtkWidget *editable[2];
 	static int flag = 0;
-	if(widget == NULL)
+	if (widget == NULL)
 	{
-		if(data == 0)
+		if (data == 0)
 		{
 			flag = 0;
 		}
 		else
 		{
 			editable[flag] = (GtkWidget *)data;
-			flag ++;
+			flag++;
 		}
 		return;
 	}
 
-	//FIXME: it seems that gtk_widget_set_visible is not working properly with gtk_widget_hide and gtk_widget_show in 0.2.24.10
-	if (data == 0) //unlimited time
+	// FIXME: it seems that gtk_widget_set_visible is not working properly with gtk_widget_hide and gtk_widget_show in 0.2.24.10
+	if (GPOINTER_TO_INT(data) == 0) // unlimited time
 	{
-		//gtk_widget_set_sensitive(editable[0], FALSE);
-		//gtk_widget_set_sensitive(editable[1], FALSE);
+		// gtk_widget_set_sensitive(editable[0], FALSE);
+		// gtk_widget_set_sensitive(editable[1], FALSE);
 		gtk_widget_set_visible(editable[0], FALSE);
 		gtk_widget_set_visible(editable[1], FALSE);
 	}
-	else if (data == 1) //custom level
+	else if (GPOINTER_TO_INT(data) == 1) // custom level
 	{
-		//gtk_widget_set_sensitive(editable[0], TRUE);
-		//gtk_widget_set_sensitive(editable[1], FALSE);
+		// gtk_widget_set_sensitive(editable[0], TRUE);
+		// gtk_widget_set_sensitive(editable[1], FALSE);
 		gtk_widget_set_visible(editable[0], TRUE);
 		gtk_widget_set_visible(editable[1], FALSE);
 	}
-	else //if (data >= 2) //predefined level
+	else // if (data >= 2) //predefined level
 	{
-		//gtk_widget_set_sensitive(editable[0], FALSE);
-		//gtk_widget_set_sensitive(editable[1], TRUE);
+		// gtk_widget_set_sensitive(editable[0], FALSE);
+		// gtk_widget_set_sensitive(editable[1], TRUE);
 		gtk_widget_set_visible(editable[0], FALSE);
 		gtk_widget_set_visible(editable[1], TRUE);
 	}
@@ -1800,7 +1967,7 @@ void show_dialog_settings_custom_entry(GtkWidget *widget, gpointer data)
 void show_dialog_settings(GtkWidget *widget, gpointer data)
 {
 	int i;
-	//gchar command[80];
+	// gchar command[80];
 	gchar text[80];
 	const gchar *ptext;
 	GtkWidget *dialog;
@@ -1818,59 +1985,67 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
 	show_dialog_settings_custom_entry(NULL, 0);
 
 	dialog = gtk_dialog_new_with_buttons("Settings", data, GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, "OK", 1, "Cancel", 2, NULL);
-	gtk_window_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
+	gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
 	gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
 
 	notebook = gtk_notebook_new();
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), notebook, FALSE, FALSE, 3);
-	notebookvbox[0] = gtk_vbox_new(FALSE, 0);
-	gtk_notebook_append_page(GTK_NOTEBOOK(notebook), notebookvbox[0], gtk_label_new(language==0?"Level":_T(clanguage[18])));
-	notebookvbox[1] = gtk_vbox_new(FALSE, 0);
-	gtk_notebook_append_page(GTK_NOTEBOOK(notebook), notebookvbox[1], gtk_label_new(language==0?"Style":_T(clanguage[19])));
-	notebookvbox[2] = gtk_vbox_new(FALSE, 0);
-	gtk_notebook_append_page(GTK_NOTEBOOK(notebook), notebookvbox[2], gtk_label_new(language==0?"Resource":_T(clanguage[20])));
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), notebook, FALSE, FALSE, 3);
+	notebookvbox[0] = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+	gtk_notebook_append_page(GTK_NOTEBOOK(notebook), notebookvbox[0], gtk_label_new(language == 0 ? "Level" : _T(clanguage[18])));
+	notebookvbox[1] = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+	gtk_notebook_append_page(GTK_NOTEBOOK(notebook), notebookvbox[1], gtk_label_new(language == 0 ? "Style" : _T(clanguage[19])));
+	notebookvbox[2] = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+	gtk_notebook_append_page(GTK_NOTEBOOK(notebook), notebookvbox[2], gtk_label_new(language == 0 ? "Resource" : _T(clanguage[20])));
 
-	for(i=0; i<9; i++)
+	for (i = 0; i < 9; i++)
 	{
 		labelblank[i] = gtk_label_new(" ");
 		gtk_label_set_width_chars(GTK_LABEL(labelblank[i]), 6);
 	}
 
-	labeltimeturn[0] = gtk_label_new(language==0?"Turn time:":_T(clanguage[21]));
+	labeltimeturn[0] = gtk_label_new(language == 0 ? "Turn time:" : _T(clanguage[21]));
 	entrytimeturn = gtk_entry_new();
 	gtk_entry_set_width_chars(GTK_ENTRY(entrytimeturn), 9);
-	sprintf(text, "%lld", timeoutturn/1000);
+	sprintf(text, "%lld", timeoutturn / 1000);
 	gtk_entry_set_text(GTK_ENTRY(entrytimeturn), text);
-	labeltimeturn[1] = gtk_label_new(language==0?"s":_T(clanguage[22]));
-	gtk_misc_set_alignment(GTK_MISC(labeltimeturn[0]), 1, 0.5);
-	gtk_misc_set_alignment(GTK_MISC(labeltimeturn[1]), 0, 0.5);
+	labeltimeturn[1] = gtk_label_new(language == 0 ? "s" : _T(clanguage[22]));
+	gtk_widget_set_halign(labeltimeturn[0], GTK_ALIGN_END);
+	gtk_widget_set_valign(labeltimeturn[0], GTK_ALIGN_CENTER);
+	gtk_widget_set_halign(labeltimeturn[1], GTK_ALIGN_START);
+	gtk_widget_set_valign(labeltimeturn[1], GTK_ALIGN_CENTER);
 
-	labeltimematch[0] = gtk_label_new(language==0?"Match time:":_T(clanguage[23]));
+	labeltimematch[0] = gtk_label_new(language == 0 ? "Match time:" : _T(clanguage[23]));
 	entrytimematch = gtk_entry_new();
 	gtk_entry_set_width_chars(GTK_ENTRY(entrytimematch), 9);
-	sprintf(text, "%lld", timeoutmatch/1000);
+	sprintf(text, "%lld", timeoutmatch / 1000);
 	gtk_entry_set_text(GTK_ENTRY(entrytimematch), text);
-	labeltimematch[1] = gtk_label_new(language==0?"s":_T(clanguage[22]));
-	gtk_misc_set_alignment(GTK_MISC(labeltimematch[0]), 1, 0.5);
-	gtk_misc_set_alignment(GTK_MISC(labeltimematch[1]), 0, 0.5);
+	labeltimematch[1] = gtk_label_new(language == 0 ? "s" : _T(clanguage[22]));
+	gtk_widget_set_halign(labeltimematch[0], GTK_ALIGN_END);
+	gtk_widget_set_valign(labeltimematch[0], GTK_ALIGN_CENTER);
+	gtk_widget_set_halign(labeltimematch[1], GTK_ALIGN_START);
+	gtk_widget_set_valign(labeltimematch[1], GTK_ALIGN_CENTER);
 
-	labelmaxdepth[0] = gtk_label_new(language==0?"Max depth:":_T(clanguage[24]));
+	labelmaxdepth[0] = gtk_label_new(language == 0 ? "Max depth:" : _T(clanguage[24]));
 	entrymaxdepth = gtk_entry_new();
 	gtk_entry_set_width_chars(GTK_ENTRY(entrymaxdepth), 3);
 	sprintf(text, "%d", maxdepth);
 	gtk_entry_set_text(GTK_ENTRY(entrymaxdepth), text);
-	labelmaxdepth[1] = gtk_label_new(language==0?"ply":_T(clanguage[25]));
-	gtk_misc_set_alignment(GTK_MISC(labelmaxdepth[0]), 1, 0.5);
-	gtk_misc_set_alignment(GTK_MISC(labelmaxdepth[1]), 0, 0.5);
+	labelmaxdepth[1] = gtk_label_new(language == 0 ? "ply" : _T(clanguage[25]));
+	gtk_widget_set_halign(labelmaxdepth[0], GTK_ALIGN_END);
+	gtk_widget_set_valign(labelmaxdepth[0], GTK_ALIGN_CENTER);
+	gtk_widget_set_halign(labelmaxdepth[1], GTK_ALIGN_START);
+	gtk_widget_set_valign(labelmaxdepth[1], GTK_ALIGN_CENTER);
 
-	labelmaxnode[0] = gtk_label_new(language==0?"Max node number:":_T(clanguage[26]));
+	labelmaxnode[0] = gtk_label_new(language == 0 ? "Max node number:" : _T(clanguage[26]));
 	entrymaxnode = gtk_entry_new();
 	gtk_entry_set_width_chars(GTK_ENTRY(entrymaxnode), 9);
-	sprintf(text, "%lld", maxnode/1000);
+	sprintf(text, "%lld", maxnode / 1000);
 	gtk_entry_set_text(GTK_ENTRY(entrymaxnode), text);
-	labelmaxnode[1] = gtk_label_new(language==0?"K":_T(clanguage[27]));
-	gtk_misc_set_alignment(GTK_MISC(labelmaxnode[0]), 1, 0.5);
-	gtk_misc_set_alignment(GTK_MISC(labelmaxnode[1]), 0, 0.5);
+	labelmaxnode[1] = gtk_label_new(language == 0 ? "K" : _T(clanguage[27]));
+	gtk_widget_set_halign(labelmaxnode[0], GTK_ALIGN_END);
+	gtk_widget_set_valign(labelmaxnode[0], GTK_ALIGN_CENTER);
+	gtk_widget_set_halign(labelmaxnode[1], GTK_ALIGN_START);
+	gtk_widget_set_valign(labelmaxnode[1], GTK_ALIGN_CENTER);
 
 	labelincrement[0] = gtk_label_new(language == 0 ? "Increment:" : _T(clanguage[95]));
 	entryincrement = gtk_entry_new();
@@ -1878,10 +2053,12 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
 	sprintf(text, "%d", increment / 1000);
 	gtk_entry_set_text(GTK_ENTRY(entryincrement), text);
 	labelincrement[1] = gtk_label_new(language == 0 ? "s / move" : _T(clanguage[96]));
-	gtk_misc_set_alignment(GTK_MISC(labelincrement[0]), 1, 0.5);
-	gtk_misc_set_alignment(GTK_MISC(labelincrement[1]), 0, 0.5);
+	gtk_widget_set_halign(labelincrement[0], GTK_ALIGN_END);
+	gtk_widget_set_valign(labelincrement[0], GTK_ALIGN_CENTER);
+	gtk_widget_set_halign(labelincrement[1], GTK_ALIGN_START);
+	gtk_widget_set_valign(labelincrement[1], GTK_ALIGN_CENTER);
 
-	scalelevel = gtk_hscale_new_with_range(1, 12, 1);
+	scalelevel = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 1, 12, 1);
 	if (levelchoice < 2)
 		gtk_range_set_value(GTK_RANGE(scalelevel), 1);
 	else
@@ -1896,37 +2073,41 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
 	g_signal_connect(G_OBJECT(radiolevel[1]), "toggled", G_CALLBACK(show_dialog_settings_custom_entry), (gpointer)1);
 	g_signal_connect(G_OBJECT(radiolevel[2]), "toggled", G_CALLBACK(show_dialog_settings_custom_entry), (gpointer)2);
 
-	tablesetting = gtk_table_new(3, 9, FALSE);
-	gtk_table_set_row_spacings(GTK_TABLE(tablesetting), 0); /* set the row distance between elements to be 0 */
-	gtk_table_set_col_spacings(GTK_TABLE(tablesetting), 0); /* set the column distance between elements to be 0 */
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelblank[0], 0, 1, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelblank[1], 4, 5, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelblank[2], 8, 9, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labeltimeturn[0], 1, 2, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), entrytimeturn, 2, 3, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labeltimeturn[1], 3, 4, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labeltimematch[0], 5, 6, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), entrytimematch, 6, 7, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labeltimematch[1], 7, 8, 0, 1);
+	tablesetting = gtk_grid_new();
+	gtk_grid_set_row_spacing(GTK_GRID(tablesetting), 0);
+	gtk_grid_set_column_spacing(GTK_GRID(tablesetting), 0);
 
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelblank[3], 0, 1, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelblank[4], 4, 5, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelblank[5], 8, 9, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelincrement[0], 1, 2, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), entryincrement, 2, 3, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelincrement[1], 3, 4, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelmaxnode[0], 5, 6, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), entrymaxnode, 6, 7, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelmaxnode[1], 7, 8, 1, 2);
+	// 第0行
+	gtk_grid_attach(GTK_GRID(tablesetting), labelblank[0], 0, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labeltimeturn[0], 1, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), entrytimeturn, 2, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labeltimeturn[1], 3, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labelblank[1], 4, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labeltimematch[0], 5, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), entrytimematch, 6, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labeltimematch[1], 7, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labelblank[2], 8, 0, 1, 1);
 
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelblank[6], 0, 1, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelblank[7], 4, 5, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelblank[8], 8, 9, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelmaxdepth[0], 1, 2, 2, 3);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), entrymaxdepth, 2, 3, 2, 3);
-	gtk_table_attach_defaults(GTK_TABLE(tablesetting), labelmaxdepth[1], 3, 4, 2, 3);
+	// 第1行
+	gtk_grid_attach(GTK_GRID(tablesetting), labelblank[3], 0, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labelincrement[0], 1, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), entryincrement, 2, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labelincrement[1], 3, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labelblank[4], 4, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labelmaxnode[0], 5, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), entrymaxnode, 6, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labelmaxnode[1], 7, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labelblank[5], 8, 1, 1, 1);
 
-	hbox[11] = gtk_hbox_new(FALSE, 0);
+	// 第2行
+	gtk_grid_attach(GTK_GRID(tablesetting), labelblank[6], 0, 2, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labelmaxdepth[0], 1, 2, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), entrymaxdepth, 2, 2, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labelmaxdepth[1], 3, 2, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labelblank[7], 4, 2, 1, 1);
+	gtk_grid_attach(GTK_GRID(tablesetting), labelblank[8], 8, 2, 1, 1);
+
+	hbox[11] = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
 	gtk_box_pack_start(GTK_BOX(hbox[11]), gtk_label_new("     "), FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(hbox[11]), gtk_label_new(language == 0 ? "Fast" : _T(clanguage[29])), FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(hbox[11]), scalelevel, FALSE, FALSE, 3);
@@ -1938,22 +2119,22 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
 	gtk_box_pack_start(GTK_BOX(notebookvbox[0]), hbox[11], FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(notebookvbox[0]), radiolevel[1], FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(notebookvbox[0]), tablesetting, FALSE, FALSE, 3);
-	
+
 	show_dialog_settings_custom_entry(NULL, (gpointer)tablesetting);
 	show_dialog_settings_custom_entry(NULL, (gpointer)hbox[11]);
 
-	scalecaution = gtk_hscale_new_with_range(0, CAUTION_NUM, 1);
-	//gtk_scale_set_value_pos(GTK_SCALE(scalecaution), GTK_POS_LEFT);
+	scalecaution = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0, CAUTION_NUM, 1);
+	// gtk_scale_set_value_pos(GTK_SCALE(scalecaution), GTK_POS_LEFT);
 	gtk_range_set_value(GTK_RANGE(scalecaution), cautionfactor);
 	gtk_widget_set_size_request(scalecaution, 100, -1);
 
 	GtkAdjustment *adjustment_threads = gtk_adjustment_new(threadnum, 1, maxthreadnum, 1, 1, 1);
 	scalethreads = gtk_spin_button_new(adjustment_threads, 1, 0);
-	//gtk_widget_set_size_request(scalethreads, 100, -1);
+	// gtk_widget_set_size_request(scalethreads, 100, -1);
 
 	GtkAdjustment *adjustment_hashsize = gtk_adjustment_new(hashsize, 0, maxhashsize, 1, 1, 1);
 	scalehash = gtk_spin_button_new(adjustment_hashsize, 1, 0);
-	//gtk_widget_set_size_request(scalehash, 100, -1);
+	// gtk_widget_set_size_request(scalehash, 100, -1);
 
 	radiovcthread[0] = gtk_radio_button_new_with_label(NULL, language == 0 ? "None" : _T(clanguage[87]));
 	radiovcthread[1] = gtk_radio_button_new_with_label(gtk_radio_button_get_group(GTK_RADIO_BUTTON(radiovcthread[0])), language == 0 ? "Check VCT" : _T(clanguage[86]));
@@ -1965,12 +2146,12 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
 	hbox[9] = radiovcthread[1];
 	hbox[10] = radiovcthread[2];
 
-	hbox[7] = gtk_hseparator_new();
+	hbox[7] = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
 
-	hbox[1] = gtk_hbox_new(FALSE, 0);
-	gtk_box_pack_start(GTK_BOX(hbox[1]), gtk_label_new(language==0?"Rash":_T(clanguage[37])), FALSE, FALSE, 3);
+	hbox[1] = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+	gtk_box_pack_start(GTK_BOX(hbox[1]), gtk_label_new(language == 0 ? "Rash" : _T(clanguage[37])), FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(hbox[1]), scalecaution, FALSE, FALSE, 3);
-	gtk_box_pack_start(GTK_BOX(hbox[1]), gtk_label_new(language==0?"Cautious":_T(clanguage[38])), FALSE, FALSE, 3);
+	gtk_box_pack_start(GTK_BOX(hbox[1]), gtk_label_new(language == 0 ? "Cautious" : _T(clanguage[38])), FALSE, FALSE, 3);
 
 	gtk_box_pack_start(GTK_BOX(notebookvbox[1]), gtk_label_new(language == 0 ? "Additional Threat Check in Global Search:" : _T(clanguage[31])), FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(notebookvbox[1]), hbox[8], FALSE, FALSE, 3);
@@ -1981,7 +2162,7 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
 
 	if (maxthreadnum > 1)
 	{
-		hbox[2] = gtk_hbox_new(FALSE, 0);
+		hbox[2] = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
 		gtk_box_pack_start(GTK_BOX(hbox[2]), gtk_label_new(language == 0 ? "Number of Threads" : _T(clanguage[39])), FALSE, FALSE, 3);
 		gtk_box_pack_start(GTK_BOX(hbox[2]), scalethreads, FALSE, FALSE, 3);
 		hbox[4] = NULL;
@@ -1990,14 +2171,14 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
 		// gtk_box_pack_start(GTK_BOX(hbox[4]), scalesplitdepth, FALSE, FALSE, 3);
 	}
 
-	hbox[3] = gtk_hbox_new(FALSE, 0);
-	gtk_box_pack_start(GTK_BOX(hbox[3]), gtk_label_new(language==0?"Hash Size": _T(clanguage[41])), FALSE, FALSE, 3);
+	hbox[3] = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+	gtk_box_pack_start(GTK_BOX(hbox[3]), gtk_label_new(language == 0 ? "Hash Size" : _T(clanguage[41])), FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(hbox[3]), scalehash, FALSE, FALSE, 3);
 
 	hbox[5] = gtk_check_button_new_with_label(language == 0 ? "Pondering" : _T(clanguage[85]));
 	gtk_toggle_button_set_active(hbox[5], infopondering ? TRUE : FALSE);
 
-	hbox[6] = gtk_hseparator_new();
+	hbox[6] = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
 
 	gtk_box_pack_start(GTK_BOX(notebookvbox[2]), hbox[5], FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(notebookvbox[2]), hbox[6], FALSE, FALSE, 3);
@@ -2024,80 +2205,86 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
 	}
 
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
-	switch(result)
+	switch (result)
 	{
-		case 1:
-			if(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiolevel[1])))
+	case 1:
+		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiolevel[1])))
+		{
+			ptext = gtk_entry_get_text(GTK_ENTRY(entrytimeturn));
+			if (is_integer(ptext))
 			{
-				ptext = gtk_entry_get_text(GTK_ENTRY(entrytimeturn));
-				if(is_integer(ptext))
-				{
-					sscanf(ptext, "%lld", &timeoutturn);
-					timeoutturn = 1000 * max(timeoutturn, 0);
-					if (timeoutturn == 0) timeoutturn = 100;
-				}
-				ptext = gtk_entry_get_text(GTK_ENTRY(entrytimematch));
-				if(is_integer(ptext))
-				{
-					sscanf(ptext, "%lld", &timeoutmatch);
-					timeoutmatch = 1000 * max(timeoutmatch, 1);
-					if (timeoutmatch < timeoutturn) timeoutmatch = timeoutturn;
-				}
-				ptext = gtk_entry_get_text(GTK_ENTRY(entrymaxdepth));
-				if(is_integer(ptext))
-				{
-					sscanf(ptext, "%d", &maxdepth);
-					if(maxdepth > boardsizeh*boardsizew) maxdepth = boardsizeh*boardsizew;
-					if(maxdepth < 2) maxdepth = 2;
-				}
-				ptext = gtk_entry_get_text(GTK_ENTRY(entrymaxnode));
-				if(is_integer(ptext))
-				{
-					sscanf(ptext, "%lld", &maxnode);
-					maxnode = 1000 * max(maxnode, 1);
-				}
-				ptext = gtk_entry_get_text(GTK_ENTRY(entryincrement));
-				if (is_integer(ptext))
-				{
-					sscanf(ptext, "%d", &increment);
-					if (increment > 10000) increment = 10000;
-					if (increment < 0) increment = 0;
-					increment *= 1000;
-				}
-				set_level(1);
+				sscanf(ptext, "%lld", &timeoutturn);
+				timeoutturn = 1000 * max(timeoutturn, 0);
+				if (timeoutturn == 0)
+					timeoutturn = 100;
+			}
+			ptext = gtk_entry_get_text(GTK_ENTRY(entrytimematch));
+			if (is_integer(ptext))
+			{
+				sscanf(ptext, "%lld", &timeoutmatch);
+				timeoutmatch = 1000 * max(timeoutmatch, 1);
+				if (timeoutmatch < timeoutturn)
+					timeoutmatch = timeoutturn;
+			}
+			ptext = gtk_entry_get_text(GTK_ENTRY(entrymaxdepth));
+			if (is_integer(ptext))
+			{
+				sscanf(ptext, "%d", &maxdepth);
+				if (maxdepth > boardsizeh * boardsizew)
+					maxdepth = boardsizeh * boardsizew;
+				if (maxdepth < 2)
+					maxdepth = 2;
+			}
+			ptext = gtk_entry_get_text(GTK_ENTRY(entrymaxnode));
+			if (is_integer(ptext))
+			{
+				sscanf(ptext, "%lld", &maxnode);
+				maxnode = 1000 * max(maxnode, 1);
+			}
+			ptext = gtk_entry_get_text(GTK_ENTRY(entryincrement));
+			if (is_integer(ptext))
+			{
+				sscanf(ptext, "%d", &increment);
+				if (increment > 10000)
+					increment = 10000;
+				if (increment < 0)
+					increment = 0;
+				increment *= 1000;
+			}
+			set_level(1);
+		}
+		else
+		{
+			if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiolevel[0])))
+			{
+				set_level(0);
 			}
 			else
 			{
-				if(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiolevel[0])))
-				{
-					set_level(0);
-				}
-				else
-				{
-					set_level((int)(gtk_range_get_value(GTK_RANGE(scalelevel)) + 1 + 1e-8));
-				}
+				set_level((int)(gtk_range_get_value(GTK_RANGE(scalelevel)) + 1 + 1e-8));
 			}
+		}
 
-			if(gtk_range_get_value(GTK_RANGE(scalecaution)) < 0)
-				set_cautionfactor((int)(gtk_range_get_value(GTK_RANGE(scalecaution))-1e-8));
-			else
-				set_cautionfactor((int)(gtk_range_get_value(GTK_RANGE(scalecaution))+1e-8));
+		if (gtk_range_get_value(GTK_RANGE(scalecaution)) < 0)
+			set_cautionfactor((int)(gtk_range_get_value(GTK_RANGE(scalecaution)) - 1e-8));
+		else
+			set_cautionfactor((int)(gtk_range_get_value(GTK_RANGE(scalecaution)) + 1e-8));
 
-			set_threadnum((int)(gtk_spin_button_get_value(GTK_SPIN_BUTTON(scalethreads))+1e-8));
+		set_threadnum((int)(gtk_spin_button_get_value(GTK_SPIN_BUTTON(scalethreads)) + 1e-8));
 
-			set_hashsize((int)(gtk_spin_button_get_value(GTK_SPIN_BUTTON(scalehash))+1e-8));
+		set_hashsize((int)(gtk_spin_button_get_value(GTK_SPIN_BUTTON(scalehash)) + 1e-8));
 
-			set_pondering(gtk_toggle_button_get_active(hbox[5]) == TRUE ? 1 : 0);
+		set_pondering(gtk_toggle_button_get_active(hbox[5]) == TRUE ? 1 : 0);
 
-			if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiovcthread[0])))
-				setvcthread(0);
-			else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiovcthread[1])))
-				setvcthread(1);
-			else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiovcthread[2])))
-				setvcthread(2);
-			break;
-		case 2:
-			break;
+		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiovcthread[0])))
+			setvcthread(0);
+		else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiovcthread[1])))
+			setvcthread(1);
+		else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiovcthread[2])))
+			setvcthread(2);
+		break;
+	case 2:
+		break;
 	}
 	gtk_widget_destroy(dialog);
 }
@@ -2105,11 +2292,11 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
 void show_dialog_load(GtkWidget *widget, gpointer data)
 {
 	GtkWidget *dialog;
-	GtkFileFilter* filter;
+	GtkFileFilter *filter;
 	FILE *in;
 	dialog = gtk_file_chooser_dialog_new("Load", data, GTK_FILE_CHOOSER_ACTION_OPEN,
-		GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL, GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT, NULL);
-	
+										 "_Cancel", GTK_RESPONSE_CANCEL, "_Open", GTK_RESPONSE_ACCEPT, NULL);
+
 	filter = gtk_file_filter_new();
 	gtk_file_filter_set_name(filter, "Yixin saved positions");
 	gtk_file_filter_add_pattern(filter, "*.[Ss][Aa][Vv]");
@@ -2125,8 +2312,8 @@ void show_dialog_load(GtkWidget *widget, gpointer data)
 	gtk_file_filter_add_pattern(filter, "*.[Pp][Ss][Qq]");
 	gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
 
-	gtk_window_position(GTK_WINDOW(dialog), GTK_WIN_POS_MOUSE);
-	if(gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+	gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_MOUSE);
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
 		char *filenameutf, *filename;
 		int nl;
@@ -2134,17 +2321,17 @@ void show_dialog_load(GtkWidget *widget, gpointer data)
 		filename = g_locale_from_utf8(filenameutf, -1, NULL, NULL, NULL);
 		printf_log("%s\n", filename);
 		nl = strlen(filename);
-		if((filename[nl-3] == 'P' || filename[nl-3] == 'p') &&
-		   (filename[nl-2] == 'O' || filename[nl-2] == 'o') &&
-		   (filename[nl-1] == 'S' || filename[nl-1] == 's'))
+		if ((filename[nl - 3] == 'P' || filename[nl - 3] == 'p') &&
+			(filename[nl - 2] == 'O' || filename[nl - 2] == 'o') &&
+			(filename[nl - 1] == 'S' || filename[nl - 1] == 's'))
 		{
-			if((in = fopen(filename, "rb")) != NULL)
+			if ((in = fopen(filename, "rb")) != NULL)
 			{
 				int i;
 				unsigned char num;
 				new_game(NULL, NULL);
 				fread(&num, 1, 1, in);
-				for(i=0; i<num; i++)
+				for (i = 0; i < num; i++)
 				{
 					unsigned char xy;
 					int x, y;
@@ -2152,23 +2339,23 @@ void show_dialog_load(GtkWidget *widget, gpointer data)
 					x = xy % 15;
 					y = xy / 15;
 					make_move(x, y);
-					//printf_log("[%d/%d] %d %d (%d)\n", i, (int)num, x, y, (int)xy);
+					// printf_log("[%d/%d] %d %d (%d)\n", i, (int)num, x, y, (int)xy);
 				}
 				fclose(in);
 				show_forbid();
 				show_database();
 			}
 		}
-		else if ((filename[nl-3] == 'S' || filename[nl-3] == 's') &&
-		   (filename[nl-2] == 'A' || filename[nl-2] == 'a') &&
-		   (filename[nl-1] == 'V' || filename[nl-1] == 'v'))
+		else if ((filename[nl - 3] == 'S' || filename[nl - 3] == 's') &&
+				 (filename[nl - 2] == 'A' || filename[nl - 2] == 'a') &&
+				 (filename[nl - 1] == 'V' || filename[nl - 1] == 'v'))
 		{
-			if((in = fopen(filename, "r")) != NULL)
+			if ((in = fopen(filename, "r")) != NULL)
 			{
 				int i, num;
 				new_game(NULL, NULL);
-				fscanf(in, "%*d"); //TODO: use boardsizeh?
-				fscanf(in, "%*d"); //TODO: use boardsizew or inforule?
+				fscanf(in, "%*d"); // TODO: use boardsizeh?
+				fscanf(in, "%*d"); // TODO: use boardsizew or inforule?
 				/*
 				fscanf(in, "%d", &inforule);
 				switch(inforule)
@@ -2179,10 +2366,10 @@ void show_dialog_load(GtkWidget *widget, gpointer data)
 					case 3: gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemrule4), TRUE); break;
 				}
 				*/
-				change_rule(NULL, (gpointer)inforule); //warning!
-			
+				change_rule(NULL, GINT_TO_POINTER(inforule)); // fixed pointer conversion
+
 				fscanf(in, "%d", &num);
-				for(i=0; i<num; i++)
+				for (i = 0; i < num; i++)
 				{
 					int x, y;
 					fscanf(in, "%d %d", &x, &y);
@@ -2194,15 +2381,15 @@ void show_dialog_load(GtkWidget *widget, gpointer data)
 			}
 		}
 		else if ((filename[nl - 3] == 'P' || filename[nl - 3] == 'p') &&
-			(filename[nl - 2] == 'S' || filename[nl - 2] == 's') &&
-			(filename[nl - 1] == 'Q' || filename[nl - 1] == 'q'))
+				 (filename[nl - 2] == 'S' || filename[nl - 2] == 's') &&
+				 (filename[nl - 1] == 'Q' || filename[nl - 1] == 'q'))
 		{
 			if ((in = fopen(filename, "r")) != NULL)
 			{
 				int x, y;
 				char line[80];
 				new_game(NULL, NULL);
-				fscanf(in, "%*[^\n]%*c"); //TODO: use boardsizeh, boardsizew, etc.?
+				fscanf(in, "%*[^\n]%*c"); // TODO: use boardsizeh, boardsizew, etc.?
 
 				fscanf(in, "%[^\n]%*c", line);
 				if (line[0] >= '0' && line[0] <= '9')
@@ -2210,12 +2397,15 @@ void show_dialog_load(GtkWidget *widget, gpointer data)
 					sscanf(line, "%d", &x);
 					while (x != -1)
 					{
-						if (sscanf(line, "%*d,%d,%*d", &y) == 0) break;
+						if (sscanf(line, "%*d,%d,%*d", &y) == 0)
+							break;
 						make_move(y - 1, x - 1);
-						if (fscanf(in, "%[^\n]%*c", line) == EOF) break;
+						if (fscanf(in, "%[^\n]%*c", line) == EOF)
+							break;
 						if (line[0] >= '0' && line[0] <= '9')
 						{
-							if (sscanf(line, "%d", &x) == 0) break;
+							if (sscanf(line, "%d", &x) == 0)
+								break;
 						}
 						else
 							break;
@@ -2229,21 +2419,21 @@ void show_dialog_load(GtkWidget *widget, gpointer data)
 		g_free(filenameutf);
 		g_free(filename);
 	}
-	gtk_widget_destroy (dialog);
+	gtk_widget_destroy(dialog);
 }
 void show_dialog_save(GtkWidget *widget, gpointer data)
 {
 	GtkWidget *dialog;
-	GtkFileFilter* filter;
+	GtkFileFilter *filter;
 	FILE *out;
 	dialog = gtk_file_chooser_dialog_new("Save", data, GTK_FILE_CHOOSER_ACTION_SAVE,
-		GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL, GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT, NULL);
+										 "_Cancel", GTK_RESPONSE_CANCEL, "_Save", GTK_RESPONSE_ACCEPT, NULL);
 	filter = gtk_file_filter_new();
 	gtk_file_filter_set_name(filter, "Yixin saved positions");
 	gtk_file_filter_add_pattern(filter, "*.[Ss][Aa][Vv]");
 	gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
-	gtk_window_position(GTK_WINDOW(dialog), GTK_WIN_POS_MOUSE);
-	if(gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+	gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_MOUSE);
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
 		char *filenameutf, *filename;
 		char _filename[256];
@@ -2251,10 +2441,10 @@ void show_dialog_save(GtkWidget *widget, gpointer data)
 		filenameutf = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 		filename = g_locale_from_utf8(filenameutf, -1, NULL, NULL, NULL);
 		len = strlen(filename);
-		if(len>=4 && (filename[len-1]=='V' || filename[len-1]=='v') &&
-			(filename[len-2]=='A' || filename[len-2]=='a') &&
-			(filename[len-3]=='S' || filename[len-3]=='s') &&
-			(filename[len-4]=='.'))
+		if (len >= 4 && (filename[len - 1] == 'V' || filename[len - 1] == 'v') &&
+			(filename[len - 2] == 'A' || filename[len - 2] == 'a') &&
+			(filename[len - 3] == 'S' || filename[len - 3] == 's') &&
+			(filename[len - 4] == '.'))
 		{
 			sprintf(_filename, "%s", filename);
 		}
@@ -2263,39 +2453,39 @@ void show_dialog_save(GtkWidget *widget, gpointer data)
 			sprintf(_filename, "%s.sav", filename);
 		}
 		printf_log("%s\n", _filename);
-		if((out = fopen(_filename, "w")) != NULL)
+		if ((out = fopen(_filename, "w")) != NULL)
 		{
 			int i;
 			fprintf(out, "%d\n", boardsizeh);
 			fprintf(out, "%d\n", boardsizew);
-			//fprintf(out, "%d\n", inforule);
+			// fprintf(out, "%d\n", inforule);
 			fprintf(out, "%d\n", piecenum);
-			for(i=0; i<piecenum; i++)
+			for (i = 0; i < piecenum; i++)
 			{
-				fprintf(out, "%d %d\n", movepath[i]/boardsizew, movepath[i]%boardsizew);
+				fprintf(out, "%d %d\n", movepath[i] / boardsizew, movepath[i] % boardsizew);
 			}
 			fclose(out);
 		}
 		g_free(filenameutf);
 		g_free(filename);
 	}
-	gtk_widget_destroy (dialog);
+	gtk_widget_destroy(dialog);
 }
 
-const char* show_dialog_dbselect(GtkWidget *widget, gpointer data, int isSave)
+const char *show_dialog_dbselect(GtkWidget *widget, gpointer data, int isSave)
 {
 	static char _filename[256];
 
 	GtkWidget *dialog;
-	GtkFileFilter* filter;
-	dialog = gtk_file_chooser_dialog_new("Select database file", data, 
-		(isSave ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN),
-		GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL, (isSave ? GTK_STOCK_SAVE : GTK_STOCK_OPEN), GTK_RESPONSE_ACCEPT, NULL);
+	GtkFileFilter *filter;
+	dialog = gtk_file_chooser_dialog_new("Select database file", data,
+										 (isSave ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN),
+										 "_Cancel", GTK_RESPONSE_CANCEL, (isSave ? "_Save" : "_Open"), GTK_RESPONSE_ACCEPT, NULL);
 	filter = gtk_file_filter_new();
 	gtk_file_filter_set_name(filter, "Yixin database");
 	gtk_file_filter_add_pattern(filter, "*.[Dd][Bb]");
 	gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
-	gtk_window_position(GTK_WINDOW(dialog), GTK_WIN_POS_MOUSE);
+	gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_MOUSE);
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
 		char *filenameutf, *filename;
@@ -2304,7 +2494,7 @@ const char* show_dialog_dbselect(GtkWidget *widget, gpointer data, int isSave)
 		filename = g_locale_from_utf8(filenameutf, -1, NULL, NULL, NULL);
 		len = strlen(filename);
 		if (len >= 3 && (filename[len - 1] == 'B' || filename[len - 1] == 'b') &&
-			(filename[len - 2] == 'D' || filename[len - 2] == 'd') && 
+			(filename[len - 2] == 'D' || filename[len - 2] == 'd') &&
 			(filename[len - 3] == '.'))
 		{
 			sprintf(_filename, "%s", filename);
@@ -2314,7 +2504,7 @@ const char* show_dialog_dbselect(GtkWidget *widget, gpointer data, int isSave)
 			sprintf(_filename, "%s.db", filename);
 		}
 		printf_log("%s\n", _filename);
-		
+
 		len = strlen(_filename);
 		_filename[len] = '\n';
 		_filename[len + 1] = 0;
@@ -2323,25 +2513,27 @@ const char* show_dialog_dbselect(GtkWidget *widget, gpointer data, int isSave)
 		g_free(filename);
 		gtk_widget_destroy(dialog);
 		return _filename;
-	} else {
+	}
+	else
+	{
 		gtk_widget_destroy(dialog);
 		return NULL;
 	}
 }
-const char* show_dialog_libselect(GtkWidget *widget, gpointer data, int isSave)
+const char *show_dialog_libselect(GtkWidget *widget, gpointer data, int isSave)
 {
 	static char _filename[256];
 
 	GtkWidget *dialog;
-	GtkFileFilter* filter;
-	dialog = gtk_file_chooser_dialog_new("Select library file", data, 
-		(isSave ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN),
-		GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL, (isSave ? GTK_STOCK_SAVE : GTK_STOCK_OPEN), GTK_RESPONSE_ACCEPT, NULL);
+	GtkFileFilter *filter;
+	dialog = gtk_file_chooser_dialog_new("Select library file", data,
+										 (isSave ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN),
+										 "_Cancel", GTK_RESPONSE_CANCEL, (isSave ? "_Save" : "_Open"), GTK_RESPONSE_ACCEPT, NULL);
 	filter = gtk_file_filter_new();
 	gtk_file_filter_set_name(filter, "Library file");
 	gtk_file_filter_add_pattern(filter, "*.[Ll][Ii][Bb]");
 	gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
-	gtk_window_position(GTK_WINDOW(dialog), GTK_WIN_POS_MOUSE);
+	gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_MOUSE);
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
 		char *filenameutf, *filename;
@@ -2349,10 +2541,10 @@ const char* show_dialog_libselect(GtkWidget *widget, gpointer data, int isSave)
 		filenameutf = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 		filename = g_locale_from_utf8(filenameutf, -1, NULL, NULL, NULL);
 		len = strlen(filename);
-		if (len >= 3 && 
+		if (len >= 3 &&
 			(filename[len - 1] == 'B' || filename[len - 1] == 'b') &&
-			(filename[len - 2] == 'I' || filename[len - 2] == 'i') && 
-			(filename[len - 3] == 'L' || filename[len - 3] == 'l') && 
+			(filename[len - 2] == 'I' || filename[len - 2] == 'i') &&
+			(filename[len - 3] == 'L' || filename[len - 3] == 'l') &&
 			(filename[len - 4] == '.'))
 		{
 			sprintf(_filename, "%s", filename);
@@ -2362,7 +2554,7 @@ const char* show_dialog_libselect(GtkWidget *widget, gpointer data, int isSave)
 			sprintf(_filename, "%s.lib", filename);
 		}
 		printf_log("%s\n", _filename);
-		
+
 		len = strlen(_filename);
 		_filename[len] = '\n';
 		_filename[len + 1] = 0;
@@ -2371,7 +2563,9 @@ const char* show_dialog_libselect(GtkWidget *widget, gpointer data, int isSave)
 		g_free(filename);
 		gtk_widget_destroy(dialog);
 		return _filename;
-	} else {
+	}
+	else
+	{
 		gtk_widget_destroy(dialog);
 		return NULL;
 	}
@@ -2389,13 +2583,13 @@ void show_dialog_move5N(GtkWidget *widget, gpointer data)
 	int done = 0;
 
 	dialog = gtk_dialog_new_with_buttons("Number of 5th Moves", GTK_WINDOW(windowmain), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, "OK", 1, NULL);
-	gtk_window_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
+	gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
 	gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
 
-	table = gtk_table_new(1, 2, FALSE);
-	gtk_table_set_row_spacings(GTK_TABLE(table), 0); /* set the row distance between elements to be 0 */
-	gtk_table_set_col_spacings(GTK_TABLE(table), 0); /* set the column distance between elements to be 0 */
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), table, FALSE, FALSE, 3);
+	table = gtk_grid_new();
+	gtk_grid_set_row_spacing(GTK_GRID(table), 0);
+	gtk_grid_set_column_spacing(GTK_GRID(table), 0);
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), table, FALSE, FALSE, 3);
 
 	label[0] = gtk_label_new(language == 0 ? "Input N (1-8):" : _T(clanguage[104]));
 
@@ -2403,8 +2597,8 @@ void show_dialog_move5N(GtkWidget *widget, gpointer data)
 	sprintf(text, "");
 	gtk_entry_set_text(GTK_ENTRY(entry[0]), text);
 
-	gtk_table_attach_defaults(GTK_TABLE(table), label[0], 0, 1, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(table), entry[0], 1, 2, 0, 1);
+	gtk_grid_attach(GTK_GRID(table), label[0], 0, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(table), entry[0], 1, 0, 1, 1);
 
 	gtk_widget_show_all(dialog);
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
@@ -2415,7 +2609,8 @@ void show_dialog_move5N(GtkWidget *widget, gpointer data)
 		if (is_integer(ptext[0]))
 		{
 			sscanf(ptext[0], "%d", &move5N);
-			if (move5N >= 1 && move5N <= 8) done = 1;
+			if (move5N >= 1 && move5N <= 8)
+				done = 1;
 		}
 		break;
 	}
@@ -2437,17 +2632,17 @@ void show_dialog_size(GtkWidget *widget, gpointer data)
 	gint result;
 
 	dialog = gtk_dialog_new_with_buttons("Settings", GTK_WINDOW(windowmain), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, "OK", 1, "Cancel", 2, NULL);
-	gtk_window_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
+	gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
 	gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
 
-	table = gtk_table_new(2, 2, FALSE);
-	gtk_table_set_row_spacings(GTK_TABLE(table), 0); /* set the row distance between elements to be 0 */
-	gtk_table_set_col_spacings(GTK_TABLE(table), 0); /* set the column distance between elements to be 0 */
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), table, FALSE, FALSE, 3);
-	
+	table = gtk_grid_new();
+	gtk_grid_set_row_spacing(GTK_GRID(table), 0);
+	gtk_grid_set_column_spacing(GTK_GRID(table), 0);
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), table, FALSE, FALSE, 3);
+
 	// label[0] = gtk_label_new(language == 0 ? "Board Height (5 ~ 22):" : _T(clanguage[42]));
 	label[1] = gtk_label_new(language == 0 ? "Board Width (5 ~ 22):" : _T(clanguage[43]));
-	
+
 	// entry[0] = gtk_entry_new();
 	// sprintf(text, "%d", boardsizeh);
 	// gtk_entry_set_text(GTK_ENTRY(entry[0]), text);
@@ -2456,37 +2651,37 @@ void show_dialog_size(GtkWidget *widget, gpointer data)
 	sprintf(text, "%d", boardsizew);
 	gtk_entry_set_text(GTK_ENTRY(entry[1]), text);
 
-	// gtk_table_attach_defaults(GTK_TABLE(table), label[0], 0, 1, 0, 1);
-	// gtk_table_attach_defaults(GTK_TABLE(table), entry[0], 1, 2, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(table), label[1], 0, 1, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(table), entry[1], 1, 2, 1, 2);
+	// gtk_grid_attach(GTK_GRID(table), label[0], 0, 0, 1, 1);
+	// gtk_grid_attach(GTK_GRID(table), entry[0], 1, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(table), label[1], 0, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(table), entry[1], 1, 1, 1, 1);
 
 	gtk_widget_show_all(dialog);
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
-	switch(result)
+	switch (result)
 	{
-		case 1:
-			// ptext[0] = gtk_entry_get_text(GTK_ENTRY(entry[0]));
-			ptext[1] = gtk_entry_get_text(GTK_ENTRY(entry[1]));
-			if (/*is_integer(ptext[0]) &&*/ is_integer(ptext[1]))
+	case 1:
+		// ptext[0] = gtk_entry_get_text(GTK_ENTRY(entry[0]));
+		ptext[1] = gtk_entry_get_text(GTK_ENTRY(entry[1]));
+		if (/*is_integer(ptext[0]) &&*/ is_integer(ptext[1]))
+		{
+			int /*s1,*/ s2;
+			// sscanf(ptext[0], "%d", &s1);
+			sscanf(ptext[1], "%d", &s2);
+			if (/*s1 <= MAX_SIZE && s1 >= 5 &&*/ s2 <= MAX_SIZE && s2 >= 5)
 			{
-				int /*s1,*/ s2;
-				// sscanf(ptext[0], "%d", &s1);
-				sscanf(ptext[1], "%d", &s2);
-				if (/*s1 <= MAX_SIZE && s1 >= 5 &&*/ s2 <= MAX_SIZE && s2 >= 5)
+				rboardsizeh = s2; // s1;
+				rboardsizew = s2;
+				if (boardsizeh != /*s1*/ s2 || boardsizew != s2)
 				{
-					rboardsizeh = s2; // s1;
-					rboardsizew = s2;
-					if (boardsizeh != /*s1*/ s2 || boardsizew != s2)
-					{
-						respawn = 1;
-						yixin_quit();
-					}
+					respawn = 1;
+					yixin_quit();
 				}
 			}
-			break;
-		case 2:
-			break;
+		}
+		break;
+	case 2:
+		break;
 	}
 	gtk_widget_destroy(dialog);
 }
@@ -2494,90 +2689,176 @@ void show_dialog_size(GtkWidget *widget, gpointer data)
 void show_dialog_custom_toolbar(GtkWidget *widget, gpointer data)
 {
 	GtkWidget *dialog;
-	GSList *ids;
-	GtkListStore *store;
-	GtkTreeModel *model;
-	GtkWidget *combo;
-	GtkWidget *cellview;
-	GtkCellRenderer *renderer;
-	GtkWidget *entry;
 	GtkWidget *label[3];
 	GtkWidget *table;
-	GtkTextBuffer *buffercommand;
-	GtkWidget *scrolledcommand;
+	GtkWidget *entry;
+	GtkWidget *combo;
 	GtkWidget *textcommand;
-	gchar text[80];
-	GSList *p;
-	gint result;
-	const gchar *ptext;
+	GtkWidget *scrolledcommand;
+	GtkCellRenderer *renderer;
+	GtkListStore *store;
+	GtkTreeModel *model;
+	GtkTextBuffer *buffercommand;
 	GtkTextIter start, end;
+	int result;
+	int i, cnt, pi;
+	const gchar *ptext;
+	char text[40];
 
-	int cnt;
-	int i;
-	int pi;
-
-	dialog = gtk_dialog_new_with_buttons("Custom Toolbar", windowmain, GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, "OK", 1, "Cancel", 2, NULL);
-	gtk_window_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
-	gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);	
+	dialog = gtk_dialog_new_with_buttons(_T(clanguage[77]), windowmain,
+										 GTK_DIALOG_MODAL,
+										 _T(clanguage[78]), 1,
+										 _T(clanguage[79]), 2, NULL);
+	gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
+	gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
 
 	store = gtk_list_store_new(2, GDK_TYPE_PIXBUF, G_TYPE_STRING);
-	cellview = gtk_cell_view_new();
+
+	// 现代图标名称数组（替换stock图标）
+	const char *modern_icons[] = {
+		"go-first", "go-previous", "go-next", "go-last",
+		"media-playback-start", "media-playback-pause", "media-playback-stop",
+		"document-new", "document-open", "document-save", "document-save-as",
+		"edit-copy", "edit-cut", "edit-paste", "edit-undo", "edit-redo",
+		"edit-delete", "list-add", "list-remove",
+		"zoom-in", "zoom-out", "zoom-fit-best", "zoom-original",
+		"dialog-information", "dialog-warning", "dialog-error", "dialog-question",
+		"preferences-system", "applications-system", "system-run",
+		"folder-open", "folder-new", "folder",
+		"text-x-generic", "image-x-generic", "audio-x-generic", "video-x-generic",
+		"network-idle", "network-transmit", "network-receive",
+		"weather-clear", "weather-few-clouds", "weather-overcast",
+		"bookmark-new", "help-about", "help-contents",
+		NULL};
+
+	const char *icon_descriptions[] = {
+		"First", "Previous", "Next", "Last",
+		"Play", "Pause", "Stop",
+		"New", "Open", "Save", "Save As",
+		"Copy", "Cut", "Paste", "Undo", "Redo",
+		"Delete", "Add", "Remove",
+		"Zoom In", "Zoom Out", "Zoom Best", "Zoom Original",
+		"Info", "Warning", "Error", "Question",
+		"Settings", "System", "Execute",
+		"Open Folder", "New Folder", "Folder",
+		"Text File", "Image File", "Audio File", "Video File",
+		"Network Idle", "Network Send", "Network Receive",
+		"Clear Weather", "Cloudy", "Overcast",
+		"Bookmark", "About", "Help",
+		NULL};
 
 	cnt = pi = 0;
-	ids = gtk_stock_list_ids();
-	ids = g_slist_sort(ids, (GCompareFunc)strcmp);
-	p = ids;
-	while (p != NULL)
+
+	// 使用现代图标API
+	GtkIconTheme *icon_theme = gtk_icon_theme_get_default();
+
+	// 扫描icon文件夹中的所有ico文件
+	char **custom_icon_files = NULL;
+	int custom_icon_count = 0;
+
+#ifdef G_OS_WIN32
+	// Windows下使用FindFirstFile/FindNextFile
+	WIN32_FIND_DATA findFileData;
+	HANDLE hFind = FindFirstFile("icon\\*.ico", &findFileData);
+
+	if (hFind != INVALID_HANDLE_VALUE)
 	{
-		gchar *id;
-		GtkIconSet *icon;
-
-		id = p->data;
-		icon = gtk_icon_factory_lookup_default(id);
-		if (icon)
+		do
 		{
-			gint n_sizes = 0;
-			GtkIconSize *sizes = NULL;
-			GtkIconSize size;
-			int ok[3] = { 0 };
+			char full_path[260];
+			sprintf(full_path, "icon/%s", findFileData.cFileName);
 
-			gtk_icon_set_get_sizes(icon, &sizes, &n_sizes);
+			// 重新分配内存来存储文件名
+			custom_icon_files = realloc(custom_icon_files, (custom_icon_count + 1) * sizeof(char *));
+			custom_icon_files[custom_icon_count] = strdup(full_path);
+			custom_icon_count++;
+		} while (FindNextFile(hFind, &findFileData) != 0);
 
-			size = sizes[0];
-			i = 0;
-			while (i < n_sizes)
+		FindClose(hFind);
+	}
+#else
+	// Linux/Unix下使用opendir/readdir
+	DIR *dir = opendir("icon");
+	if (dir != NULL)
+	{
+		struct dirent *entry;
+		while ((entry = readdir(dir)) != NULL)
+		{
+			if (strstr(entry->d_name, ".ico") != NULL)
 			{
-				if (sizes[i] == GTK_ICON_SIZE_SMALL_TOOLBAR) ok[0] = 1;
-				if (sizes[i] == GTK_ICON_SIZE_LARGE_TOOLBAR) ok[1] = 1;
-				if (sizes[i] == GTK_ICON_SIZE_BUTTON) ok[2] = 1;
-				i++;
+				char full_path[260];
+				sprintf(full_path, "icon/%s", entry->d_name);
+
+				// 重新分配内存来存储文件名
+				custom_icon_files = realloc(custom_icon_files, (custom_icon_count + 1) * sizeof(char *));
+				custom_icon_files[custom_icon_count] = strdup(full_path);
+				custom_icon_count++;
 			}
-			if (ok[0] && ok[1] && ok[2])
+		}
+		closedir(dir);
+	}
+#endif
+
+	// 添加找到的自定义图标文件
+	for (i = 0; i < custom_icon_count; i++)
+	{
+		GdkPixbuf *original_pixbuf = gdk_pixbuf_new_from_file(custom_icon_files[i], NULL);
+		if (original_pixbuf)
+		{
+			GtkTreeIter iter;
+			cnt++;
+
+			// 获取标准图标大小
+			gint icon_size;
+			gtk_icon_size_lookup(GTK_ICON_SIZE_BUTTON, &icon_size, NULL);
+
+			// 缩放自定义图标到与标准图标相同的大小
+			GdkPixbuf *pixbuf = gdk_pixbuf_scale_simple(original_pixbuf, icon_size, icon_size, GDK_INTERP_BILINEAR);
+			g_object_unref(original_pixbuf);
+
+			// 从文件路径中提取文件名作为描述
+			char *filename = strrchr(custom_icon_files[i], '/');
+			if (!filename)
+				filename = strrchr(custom_icon_files[i], '\\');
+			if (!filename)
+				filename = custom_icon_files[i];
+			else
+				filename++; // 跳过路径分隔符
+
+			gtk_list_store_append(store, &iter);
+			gtk_list_store_set(store, &iter, 0, pixbuf, 1, filename, -1);
+			g_object_unref(pixbuf);
+
+			if (strcmp(custom_icon_files[i], toolbaricon[GPOINTER_TO_INT(data)]) == 0)
 			{
-				GdkPixbuf *pixbuf;
-				char l[10];
+				pi = cnt - 1;
+			}
+		}
+	}
+
+	// 然后添加标准图标
+	for (i = 0; modern_icons[i] != NULL; i++)
+	{
+		if (gtk_icon_theme_has_icon(icon_theme, modern_icons[i]))
+		{
+			GdkPixbuf *pixbuf = gtk_icon_theme_load_icon(icon_theme, modern_icons[i],
+														 GTK_ICON_SIZE_BUTTON, 0, NULL);
+			if (pixbuf)
+			{
 				GtkTreeIter iter;
 				cnt++;
 
-				pixbuf = gtk_widget_render_icon(cellview, id,
-					GTK_ICON_SIZE_BUTTON, NULL);
-
-				sprintf(l, "Icon %d", cnt);
 				gtk_list_store_append(store, &iter);
-				gtk_list_store_set(store, &iter, 0, pixbuf, 1, l, -1);
+				gtk_list_store_set(store, &iter, 0, pixbuf, 1, icon_descriptions[i], -1);
 				g_object_unref(pixbuf);
 
-				if (strcmp(id, toolbaricon[(int)data]) == 0)
+				if (strcmp(modern_icons[i], toolbaricon[GPOINTER_TO_INT(data)]) == 0)
 				{
 					pi = cnt - 1;
 				}
 			}
 		}
-
-		p = g_slist_next(p);
 	}
-
-	gtk_widget_destroy(cellview);
 
 	model = GTK_TREE_MODEL(store);
 	combo = gtk_combo_box_new_with_model(model);
@@ -2594,7 +2875,7 @@ void show_dialog_custom_toolbar(GtkWidget *widget, gpointer data)
 	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), pi);
 
 	entry = gtk_entry_new();
-	sprintf(text, "%d", toolbarlng[(int)data]);
+	sprintf(text, "%d", toolbarlng[GPOINTER_TO_INT(data)]);
 	gtk_entry_set_text(GTK_ENTRY(entry), text);
 
 	label[0] = gtk_label_new(language == 0 ? "Icon:" : _T(clanguage[89]));
@@ -2608,21 +2889,19 @@ void show_dialog_custom_toolbar(GtkWidget *widget, gpointer data)
 	gtk_widget_set_size_request(scrolledcommand, 200, 200);
 
 	gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffercommand), &start, &end);
-	gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffercommand), &end, toolbarcommand[(int)data], strlen(toolbarcommand[(int)data]));
+	gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffercommand), &end, toolbarcommand[GPOINTER_TO_INT(data)], strlen(toolbarcommand[GPOINTER_TO_INT(data)]));
 
-	table = gtk_table_new(4, 2, FALSE);
-	gtk_table_set_row_spacings(GTK_TABLE(table), 0); /* set the row distance between elements to be 0 */
-	gtk_table_set_col_spacings(GTK_TABLE(table), 0); /* set the column distance between elements to be 0 */
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), table, FALSE, FALSE, 3);
+	table = gtk_grid_new();
+	gtk_grid_set_row_spacing(GTK_GRID(table), 0);
+	gtk_grid_set_column_spacing(GTK_GRID(table), 0);
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), table, FALSE, FALSE, 3);
 
-	gtk_table_attach_defaults(GTK_TABLE(table), label[0], 0, 1, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(table), combo, 1, 2, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(table), label[1], 0, 1, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(table), entry, 1, 2, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(table), label[2], 0, 2, 2, 3);
-	gtk_table_attach_defaults(GTK_TABLE(table), scrolledcommand, 0, 2, 3, 4);
-
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), table, FALSE, FALSE, 3);
+	gtk_grid_attach(GTK_GRID(table), label[0], 0, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(table), combo, 1, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(table), label[1], 0, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(table), entry, 1, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(table), label[2], 0, 2, 2, 1);
+	gtk_grid_attach(GTK_GRID(table), scrolledcommand, 0, 3, 2, 1);
 	gtk_widget_show_all(dialog);
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
 
@@ -2634,64 +2913,32 @@ void show_dialog_custom_toolbar(GtkWidget *widget, gpointer data)
 		ptext = gtk_entry_get_text(GTK_ENTRY(entry));
 		if (is_integer(ptext))
 		{
-			sscanf(ptext, "%d", &toolbarlng[(int)data]);
+			sscanf(ptext, "%d", &toolbarlng[GPOINTER_TO_INT(data)]);
 		}
 		pi = gtk_combo_box_get_active(combo);
-		cnt = 0;
-		p = ids;
-		while (p != NULL)
+
+		// 设置选择的图标
+		if (pi >= 0 && pi < cnt)
 		{
-			gchar *id;
-			GtkIconSet *icon;
-
-			id = p->data;
-			icon = gtk_icon_factory_lookup_default(id);
-			if (icon)
+			if (pi < custom_icon_count)
 			{
-				gint n_sizes = 0;
-				GtkIconSize *sizes = NULL;
-				GtkIconSize size;
-				int ok[3] = { 0 };
-
-				gtk_icon_set_get_sizes(icon, &sizes, &n_sizes);
-
-				size = sizes[0];
-				i = 0;
-				while (i < n_sizes)
+				// 选择的是自定义图标
+				toolbaricon[GPOINTER_TO_INT(data)] = strdup(custom_icon_files[pi]);
+			}
+			else
+			{
+				// 选择的是标准图标
+				int standard_icon_index = pi - custom_icon_count;
+				if (standard_icon_index < (sizeof(modern_icons) / sizeof(modern_icons[0]) - 1) && modern_icons[standard_icon_index] != NULL)
 				{
-					if (sizes[i] == GTK_ICON_SIZE_SMALL_TOOLBAR) ok[0] = 1;
-					if (sizes[i] == GTK_ICON_SIZE_LARGE_TOOLBAR) ok[1] = 1;
-					if (sizes[i] == GTK_ICON_SIZE_BUTTON) ok[2] = 1;
-					i++;
-				}
-				if (ok[0] && ok[1] && ok[2])
-				{
-					GdkPixbuf *pixbuf;
-					char l[10];
-					GtkTreeIter iter;
-					cnt++;
-
-					pixbuf = gtk_widget_render_icon(cellview, id,
-						GTK_ICON_SIZE_BUTTON, NULL);
-
-					sprintf(l, "Icon %d", cnt);
-					gtk_list_store_append(store, &iter);
-					gtk_list_store_set(store, &iter, 0, pixbuf, 1, l, -1);
-					g_object_unref(pixbuf);
-
-					if (cnt - 1 == pi)
-					{
-						toolbaricon[(int)data] = strdup(id);
-						break;
-					}
+					toolbaricon[GPOINTER_TO_INT(data)] = strdup(modern_icons[standard_icon_index]);
 				}
 			}
-
-			p = g_slist_next(p);
 		}
+
 		gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffercommand), &start, &end);
 		command = gtk_text_buffer_get_text(GTK_TEXT_BUFFER(buffercommand), &start, &end, FALSE);
-		strcpy(toolbarcommand[(int)data], command);
+		strcpy(toolbarcommand[GPOINTER_TO_INT(data)], command);
 
 		respawn = 1;
 		yixin_quit();
@@ -2700,8 +2947,12 @@ void show_dialog_custom_toolbar(GtkWidget *widget, gpointer data)
 		break;
 	}
 
-	g_slist_foreach(ids, (GFunc)g_free, NULL);
-	g_slist_free(ids);
+	// 释放自定义图标文件名内存
+	for (i = 0; i < custom_icon_count; i++)
+	{
+		free(custom_icon_files[i]);
+	}
+	free(custom_icon_files);
 
 	gtk_widget_destroy(dialog);
 }
@@ -2717,19 +2968,19 @@ void show_dialog_custom_hotkey(GtkWidget *widget, gpointer data)
 	GtkWidget *textcommand;
 	gint result;
 	GtkTextIter start, end;
-	
+
 	int i;
 
 	dialog = gtk_dialog_new_with_buttons("Custom Hotkey", windowmain, GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, "OK", 1, "Cancel", 2, NULL);
-	gtk_window_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
+	gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
 	gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
 
-	combo = gtk_combo_box_new_text();
+	combo = gtk_combo_box_text_new();
 	for (i = 0; hotkeynamelist[i] != NULL; i++)
 	{
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo), hotkeynamelist[i]);
+		gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), hotkeynamelist[i]);
 	}
-	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), hotkeykey[(int)data]);
+	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), hotkeykey[GPOINTER_TO_INT(data)]);
 
 	label[0] = gtk_label_new(language == 0 ? "Hotkey:" : _T(clanguage[93]));
 	label[1] = gtk_label_new(language == 0 ? "Command:" : _T(clanguage[91]));
@@ -2741,19 +2992,17 @@ void show_dialog_custom_hotkey(GtkWidget *widget, gpointer data)
 	gtk_widget_set_size_request(scrolledcommand, 200, 200);
 
 	gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffercommand), &start, &end);
-	gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffercommand), &end, hotkeycommand[(int)data], strlen(hotkeycommand[(int)data]));
+	gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffercommand), &end, hotkeycommand[GPOINTER_TO_INT(data)], strlen(hotkeycommand[GPOINTER_TO_INT(data)]));
 
-	table = gtk_table_new(4, 2, FALSE);
-	gtk_table_set_row_spacings(GTK_TABLE(table), 0); /* set the row distance between elements to be 0 */
-	gtk_table_set_col_spacings(GTK_TABLE(table), 0); /* set the column distance between elements to be 0 */
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), table, FALSE, FALSE, 3);
+	table = gtk_grid_new();
+	gtk_grid_set_row_spacing(GTK_GRID(table), 0);
+	gtk_grid_set_column_spacing(GTK_GRID(table), 0);
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), table, FALSE, FALSE, 3);
 
-	gtk_table_attach_defaults(GTK_TABLE(table), label[0], 0, 1, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(table), combo, 1, 2, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(table), label[1], 0, 1, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(table), scrolledcommand, 0, 2, 2, 3);
-
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), table, FALSE, FALSE, 3);
+	gtk_grid_attach(GTK_GRID(table), label[0], 0, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(table), combo, 1, 0, 1, 1);
+	gtk_grid_attach(GTK_GRID(table), label[1], 0, 1, 1, 1);
+	gtk_grid_attach(GTK_GRID(table), scrolledcommand, 0, 2, 2, 1);
 	gtk_widget_show_all(dialog);
 	result = gtk_dialog_run(GTK_DIALOG(dialog));
 
@@ -2765,8 +3014,8 @@ void show_dialog_custom_hotkey(GtkWidget *widget, gpointer data)
 
 		gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffercommand), &start, &end);
 		command = gtk_text_buffer_get_text(GTK_TEXT_BUFFER(buffercommand), &start, &end, FALSE);
-		strcpy(hotkeycommand[(int)data], command);
-		hotkeykey[(int)data] = gtk_combo_box_get_active(combo);
+		strcpy(hotkeycommand[GPOINTER_TO_INT(data)], command);
+		hotkeykey[GPOINTER_TO_INT(data)] = gtk_combo_box_get_active(combo);
 	}
 	case 2:
 		break;
@@ -2788,9 +3037,9 @@ void show_dialog_about(GtkWidget *widget, gpointer data)
 	show_thanklist();
 
 	dialog = gtk_dialog_new_with_buttons("About", data, GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, "OK", 1, NULL);
-	gtk_window_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
+	gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
 	gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
-	
+
 	pixbuf = gdk_pixbuf_new_from_file("icon.ico", NULL);
 
 	icon = gtk_image_new_from_pixbuf(pixbuf);
@@ -2798,14 +3047,14 @@ void show_dialog_about(GtkWidget *widget, gpointer data)
 	pixbuf = NULL;
 	name = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(name), "<big><b>Yixin Board</b></big>");
-	version = gtk_label_new("Version "VERSION);
+	version = gtk_label_new("Version " VERSION);
 	author = gtk_label_new("(C)2009-2017 Kai Sun");
 	www = gtk_label_new("www.aiexp.info");
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), icon, FALSE, FALSE, 3);
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), name, FALSE, FALSE, 3);
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), version, FALSE, FALSE, 3);
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), author, FALSE, FALSE, 3);
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), www, FALSE, FALSE, 10);
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), icon, FALSE, FALSE, 3);
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), name, FALSE, FALSE, 3);
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), version, FALSE, FALSE, 3);
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), author, FALSE, FALSE, 3);
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), www, FALSE, FALSE, 10);
 
 	gtk_widget_show_all(dialog);
 	gtk_dialog_run(GTK_DIALOG(dialog));
@@ -2823,13 +3072,15 @@ void new_game(GtkWidget *widget, gpointer data)
 	memset(boardlose, 0, sizeof(boardlose));
 	memset(boardpos, 0, sizeof(boardpos));
 	refresh_board();
-	if (isthinking) isneedomit++;
+	if (isthinking)
+		isneedomit++;
 	isthinking = 0;
 	clock_timer_change_status(2);
 	isneedrestart = 1;
 	update_textpos();
 
-	if (widget != NULL) {
+	if (widget != NULL)
+	{
 		refreshboardflag = 0;
 		show_database();
 	}
@@ -2839,7 +3090,7 @@ void new_game_resetclock(GtkWidget *widget, gpointer data)
 {
 	new_game(widget, data);
 	clock_timer_init();
-	
+
 	if (specialrule == 4)
 	{
 		swap2done = 0;
@@ -2861,7 +3112,6 @@ void new_game_resetclock(GtkWidget *widget, gpointer data)
 void set_rule()
 {
 	char command[80];
-	//printf_log("INFO rule %d\n", inforule);
 	sprintf(command, "INFO rule %d\n", inforule);
 	send_command(command);
 	isneedrestart = 1;
@@ -2870,13 +3120,13 @@ void set_rule()
 }
 void change_rule(GtkWidget *widget, gpointer data)
 {
-	inforule = (int)data;
-	if(inforule == 3)
+	inforule = GPOINTER_TO_INT(data);
+	if (inforule == 3)
 	{
 		inforule = 2;
 		specialrule = 1;
 	}
-	else if(inforule == 4)
+	else if (inforule == 4)
 	{
 		inforule = 0;
 		specialrule = 2;
@@ -2903,26 +3153,37 @@ void change_timeoutcheck(GtkWidget *widget, gpointer data)
 }
 void change_side(GtkWidget *widget, gpointer data)
 {
-	computerside ^= (int)data;
+	computerside ^= GPOINTER_TO_INT(data);
 	isneedrestart = 1;
 }
 void change_side_menu(int flag, GtkWidget *w)
 {
 	static GtkWidget *rec[2];
-	switch(flag)
+	switch (flag)
 	{
-		case 3: rec[0] = w; break;
-		case 4: rec[1] = w; break;
-		case -1: gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(rec[0]), FALSE); break;
-		case -2: gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(rec[1]), FALSE); break;
-		case 1: gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(rec[0]), TRUE); break;
-		case 2: gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(rec[1]), TRUE); break;
+	case 3:
+		rec[0] = w;
+		break;
+	case 4:
+		rec[1] = w;
+		break;
+	case -1:
+		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(rec[0]), FALSE);
+		break;
+	case -2:
+		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(rec[1]), FALSE);
+		break;
+	case 1:
+		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(rec[0]), TRUE);
+		break;
+	case 2:
+		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(rec[1]), TRUE);
+		break;
 	}
 }
 void view_analysis(GtkWidget *widget, gpointer data)
 {
 	showanalysis ^= 1;
-	//TODO: when showanalysis==0, the engine should be noticed to stop sending analysis information to save time.
 	refresh_board();
 }
 void view_forbidden(GtkWidget *widget, gpointer data)
@@ -2973,7 +3234,7 @@ void view_log(GtkWidget *widget, gpointer data)
 			gtk_widget_show(scrolledtextdbcomment);
 		gtk_widget_show(scrolledtextlog);
 		gtk_widget_show(scrolledtextcommand);
-		if (toolbarpos == 1) gtk_widget_show(toolbar);
+		gtk_widget_show(toolbar);
 	}
 	else
 	{
@@ -2981,7 +3242,7 @@ void view_log(GtkWidget *widget, gpointer data)
 		gtk_widget_hide(scrolledtextdbcomment);
 		gtk_widget_hide(scrolledtextlog);
 		gtk_widget_hide(scrolledtextcommand);
-		if (toolbarpos == 1) gtk_widget_hide(toolbar);
+		gtk_widget_hide(toolbar);
 	}
 }
 void view_clock()
@@ -2994,7 +3255,7 @@ void view_clock()
 	}
 	else
 	{
-		gtk_widget_hide_all(windowclock);
+		gtk_widget_hide(windowclock);
 	}
 }
 gint windowclock_delete()
@@ -3003,8 +3264,9 @@ gint windowclock_delete()
 }
 void change_language(GtkWidget *widget, gpointer data)
 {
-	if(language == (int)data) return;
-	rlanguage = (int)data;
+	if (language == GPOINTER_TO_INT(data))
+		return;
+	rlanguage = GPOINTER_TO_INT(data);
 	respawn = 1;
 	yixin_quit();
 }
@@ -3012,25 +3274,37 @@ void change_piece(GtkWidget *widget, gpointer data)
 {
 	int i;
 	int p = 0;
-	if(widget != NULL) refreshboardflag = 0;
-	switch((int)data)
+	if (widget != NULL)
+		refreshboardflag = 0;
+	switch (GPOINTER_TO_INT(data))
 	{
-	case 0: p = 0; break;
-	case 1: p = piecenum - 1; break;
-	case 2: p = piecenum + 1; break;
-	case 3: p = MAX_SIZE*MAX_SIZE; break;
+	case 0:
+		p = 0;
+		break;
+	case 1:
+		p = piecenum - 1;
+		break;
+	case 2:
+		p = piecenum + 1;
+		break;
+	case 3:
+		p = MAX_SIZE * MAX_SIZE;
+		break;
 	}
-	while(p > 0 && movepath[p-1] == -1) p --;
+	while (p > 0 && movepath[p - 1] == -1)
+		p--;
 
 	clear_board_tag();
 
 	new_game(NULL, NULL);
-	for(i=0; i<p; i++) make_move(movepath[i]/boardsizew, movepath[i]%boardsizew);
+	for (i = 0; i < p; i++)
+		make_move(movepath[i] / boardsizew, movepath[i] % boardsizew);
 	show_forbid();
 	show_database();
 
 	stop_thinking(widget, data);
-	if (p == 0) update_textpos();
+	if (p == 0)
+		update_textpos();
 }
 
 void stop_thinking(GtkWidget *widget, gpointer data)
@@ -3043,24 +3317,27 @@ void stop_thinking(GtkWidget *widget, gpointer data)
 void start_thinking(GtkWidget *widget, gpointer data)
 {
 	GdkEventButton event;
-	GdkWindowEdge edge = GDK_WINDOW_EDGE_NORTH_WEST; // not useful
-	if(isthinking) return;
-	if(piecenum%2 == 1 && (computerside & 1))
+	GdkWindowEdge edge = GDK_WINDOW_EDGE_NORTH_WEST;
+	if (isthinking)
+		return;
+	if (piecenum % 2 == 1 && (computerside & 1))
 		change_side_menu(-1, NULL);
-	if(piecenum%2 == 0 && (computerside & 2))
+	if (piecenum % 2 == 0 && (computerside & 2))
 		change_side_menu(-2, NULL);
-	if(piecenum%2 == 0 && computerside == 0)
+	if (piecenum % 2 == 0 && computerside == 0)
 		change_side_menu(1, NULL);
-	if(piecenum%2 == 1 && computerside == 0)
+	if (piecenum % 2 == 1 && computerside == 0)
 		change_side_menu(2, NULL);
 	event.type = GDK_BUTTON_PRESS;
 	event.button = 1;
-	event.x = imageboard[0][0]->allocation.x;
-	event.y = imageboard[0][0]->allocation.y;
+	GtkAllocation allocation;
+	gtk_widget_get_allocation(imageboard[0][0], &allocation);
+	event.x = allocation.x;
+	event.y = allocation.y;
 	on_button_press_windowmain(widget, &event, edge);
-	if(computerside == 1)
+	if (computerside == 1)
 		change_side_menu(-1, NULL);
-	if(computerside == 2)
+	if (computerside == 2)
 		change_side_menu(-2, NULL);
 }
 
@@ -3076,7 +3353,8 @@ void custom_function(char *command)
 			continue;
 		}
 		r = l + 1;
-		while (command[r] && command[r] != '\n') r++;
+		while (command[r] && command[r] != '\n')
+			r++;
 
 		t = command[r + 1];
 		command[r + 1] = 0;
@@ -3111,12 +3389,12 @@ gint sleep_timeout(gpointer data)
 
 void hotkey_function(GtkWidget *widget, gpointer data)
 {
-	custom_function(hotkeycommand[(int)data]);
+	custom_function(hotkeycommand[GPOINTER_TO_INT(data)]);
 }
 
 void toolbar_function(GtkWidget *widget, gpointer data)
 {
-	custom_function(toolbarcommand[(int)data]);
+	custom_function(toolbarcommand[GPOINTER_TO_INT(data)]);
 }
 
 void execute_command(gchar *command)
@@ -3125,11 +3403,11 @@ void execute_command(gchar *command)
 	if (debuglog != NULL)
 	{
 		fprintf(debuglog, "EXECUTE_COMMAND [%s,%s,%s,%s]: %s\n",
-			gtk_label_get_text(clocklabel[0]),
-			gtk_label_get_text(clocklabel[1]),
-			gtk_label_get_text(clocklabel[2]),
-			gtk_label_get_text(clocklabel[3]),
-			command);
+				gtk_label_get_text(clocklabel[0]),
+				gtk_label_get_text(clocklabel[1]),
+				gtk_label_get_text(clocklabel[2]),
+				gtk_label_get_text(clocklabel[3]),
+				command);
 		fflush(debuglog);
 	}
 	if (yixin_strnicmp(command, "command on", 10) == 0)
@@ -3263,9 +3541,12 @@ void execute_command(gchar *command)
 		{
 			if (strlen(command) >= 8)
 			{
-				if (command[7] == '9') k = 1;
-				else if (command[7] == '1') k = 2;
-				else if (command[7] == '2') k = 3;
+				if (command[7] == '9')
+					k = 1;
+				else if (command[7] == '1')
+					k = 2;
+				else if (command[7] == '2')
+					k = 3;
 			}
 			refreshboardflag = 0;
 			for (j = 0; j < k; j++)
@@ -3277,11 +3558,12 @@ void execute_command(gchar *command)
 					_x = movepath[i] % boardsizew;
 					y = _x;
 					x = boardsizeh - 1 - _y;
-					movepath[i] = y*boardsizew + x;
+					movepath[i] = y * boardsizew + x;
 				}
 			}
 			new_game(NULL, NULL);
-			for (i = 0; i < p; i++) make_move(movepath[i] / boardsizew, movepath[i] % boardsizew);
+			for (i = 0; i < p; i++)
+				make_move(movepath[i] / boardsizew, movepath[i] % boardsizew);
 			show_forbid();
 			show_database();
 		}
@@ -3292,10 +3574,14 @@ void execute_command(gchar *command)
 		int k = 0;
 		if (strlen(command) >= 6)
 		{
-			if (command[5] == '-') k = 0;
-			else if (command[5] == '|') k = 1;
-			else if (command[5] == '/') k = 2;
-			else if (command[5] == '\\') k = 3;
+			if (command[5] == '-')
+				k = 0;
+			else if (command[5] == '|')
+				k = 1;
+			else if (command[5] == '/')
+				k = 2;
+			else if (command[5] == '\\')
+				k = 3;
 		}
 		if ((k == 2 || k == 3) && (boardsizew != boardsizeh))
 		{
@@ -3329,10 +3615,11 @@ void execute_command(gchar *command)
 					x = _y;
 					break;
 				}
-				movepath[i] = y*boardsizew + x;
+				movepath[i] = y * boardsizew + x;
 			}
 			new_game(NULL, NULL);
-			for (i = 0; i < p; i++) make_move(movepath[i] / boardsizew, movepath[i] % boardsizew);
+			for (i = 0; i < p; i++)
+				make_move(movepath[i] / boardsizew, movepath[i] % boardsizew);
 			show_forbid();
 			show_database();
 		}
@@ -3344,13 +3631,17 @@ void execute_command(gchar *command)
 		int f = 1;
 		if (strlen(command) >= 6)
 		{
-			if (command[5] == '^') k = 0;
-			else if (command[5] == 'v') k = 1;
-			else if (command[5] == '<') k = 2;
-			else if (command[5] == '>') k = 3;
+			if (command[5] == '^')
+				k = 0;
+			else if (command[5] == 'v')
+				k = 1;
+			else if (command[5] == '<')
+				k = 2;
+			else if (command[5] == '>')
+				k = 3;
 		}
 		refreshboardflag = 0;
-		for (i = 0; i<p; i++)
+		for (i = 0; i < p; i++)
 		{
 			int _x, _y, x, y;
 			_y = movepath[i] / boardsizew;
@@ -3374,7 +3665,8 @@ void execute_command(gchar *command)
 				x = _x + 1;
 				break;
 			}
-			if (x < 0 || x > boardsizew - 1 || y < 0 || y > boardsizeh - 1) f = 0;
+			if (x < 0 || x > boardsizew - 1 || y < 0 || y > boardsizeh - 1)
+				f = 0;
 		}
 		if (f)
 		{
@@ -3402,11 +3694,12 @@ void execute_command(gchar *command)
 					x = _x + 1;
 					break;
 				}
-				movepath[i] = y*boardsizew + x;
+				movepath[i] = y * boardsizew + x;
 			}
 		}
 		new_game(NULL, NULL);
-		for (i = 0; i < p; i++) make_move(movepath[i] / boardsizew, movepath[i] % boardsizew);
+		for (i = 0; i < p; i++)
+			make_move(movepath[i] / boardsizew, movepath[i] % boardsizew);
 		show_forbid();
 		show_database();
 	}
@@ -3428,8 +3721,8 @@ void execute_command(gchar *command)
 		int offset, accumulatedOffset = 0;
 		for (i = 0; i < piecenum; i++)
 		{
-			sprintf(posstring + accumulatedOffset, "%c%d%n", movepath[i] % boardsizew + 'a', 
-				    boardsizeh - 1 - movepath[i] / boardsizew + 1, &offset);
+			sprintf(posstring + accumulatedOffset, "%c%d%n", movepath[i] % boardsizew + 'a',
+					boardsizeh - 1 - movepath[i] / boardsizew + 1, &offset);
 			accumulatedOffset += offset;
 		}
 		GtkClipboard *clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
@@ -3439,12 +3732,15 @@ void execute_command(gchar *command)
 	{
 		new_game(NULL, NULL);
 		i = 6;
-		while (command[i] == '\t' || command[i] == ' ') i++;
+		while (command[i] == '\t' || command[i] == ' ')
+			i++;
 		for (; command[i];)
 		{
 			int x, y;
-			if (command[i] >= 'a' && command[i] <= 'z') command[i] = command[i] - 'a' + 'A';
-			if (command[i] < 'A' || command[i] > 'Z') break;
+			if (command[i] >= 'a' && command[i] <= 'z')
+				command[i] = command[i] - 'a' + 'A';
+			if (command[i] < 'A' || command[i] > 'Z')
+				break;
 			x = command[i] - 'A';
 			i++;
 			y = command[i] - '0';
@@ -3455,9 +3751,11 @@ void execute_command(gchar *command)
 				i++;
 			}
 			y = y - 1;
-			if (x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh) break;
+			if (x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh)
+				break;
 			y = boardsizeh - 1 - y;
-			if (board[y][x] != 0) break;
+			if (board[y][x] != 0)
+				break;
 			make_move(y, x);
 		}
 		show_forbid();
@@ -3492,16 +3790,19 @@ void execute_command(gchar *command)
 	else if (yixin_strnicmp(command, "blockpath undo", 14) == 0)
 	{
 		gchar _command[80];
-		int xl[MAX_SIZE*MAX_SIZE], yl[MAX_SIZE*MAX_SIZE];
+		int xl[MAX_SIZE * MAX_SIZE], yl[MAX_SIZE * MAX_SIZE];
 		int len = 0;
 
 		i = 14;
-		while (command[i] == '\t' || command[i] == ' ') i++;
+		while (command[i] == '\t' || command[i] == ' ')
+			i++;
 		for (; command[i];)
 		{
 			int x, y;
-			if (command[i] >= 'a' && command[i] <= 'z') command[i] = command[i] - 'a' + 'A';
-			if (command[i] < 'A' || command[i] > 'Z') break;
+			if (command[i] >= 'a' && command[i] <= 'z')
+				command[i] = command[i] - 'a' + 'A';
+			if (command[i] < 'A' || command[i] > 'Z')
+				break;
 			x = command[i] - 'A';
 			i++;
 			y = command[i] - '0';
@@ -3512,7 +3813,8 @@ void execute_command(gchar *command)
 				i++;
 			}
 			y = y - 1;
-			if (x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh) break;
+			if (x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh)
+				break;
 			xl[len] = boardsizeh - 1 - y;
 			yl[len] = x;
 			len++;
@@ -3536,16 +3838,19 @@ void execute_command(gchar *command)
 	else if (yixin_strnicmp(command, "blockpath except", 16) == 0)
 	{
 		gchar _command[80];
-		int xl[MAX_SIZE*MAX_SIZE], yl[MAX_SIZE*MAX_SIZE];
+		int xl[MAX_SIZE * MAX_SIZE], yl[MAX_SIZE * MAX_SIZE];
 		int len = 0;
 
 		i = 16;
-		while (command[i] == '\t' || command[i] == ' ') i++;
+		while (command[i] == '\t' || command[i] == ' ')
+			i++;
 		for (; command[i];)
 		{
 			int x, y;
-			if (command[i] >= 'a' && command[i] <= 'z') command[i] = command[i] - 'a' + 'A';
-			if (command[i] < 'A' || command[i] > 'Z') break;
+			if (command[i] >= 'a' && command[i] <= 'z')
+				command[i] = command[i] - 'a' + 'A';
+			if (command[i] < 'A' || command[i] > 'Z')
+				break;
 			x = command[i] - 'A';
 			i++;
 			y = command[i] - '0';
@@ -3556,7 +3861,8 @@ void execute_command(gchar *command)
 				i++;
 			}
 			y = y - 1;
-			if (x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh) break;
+			if (x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh)
+				break;
 			xl[len] = boardsizeh - 1 - y;
 			yl[len] = x;
 			len++;
@@ -3568,7 +3874,8 @@ void execute_command(gchar *command)
 			{
 				for (k = 0; k < MAX_SIZE; k++)
 				{
-					if (xl[len - 1] == j && yl[len - 1] == k) continue;
+					if (xl[len - 1] == j && yl[len - 1] == k)
+						continue;
 					send_command("yxblockpath\n");
 					for (i = 0; i < piecenum; i++)
 					{
@@ -3589,21 +3896,24 @@ void execute_command(gchar *command)
 	}
 	else if (yixin_strnicmp(command, "blockpath list", 14) == 0)
 	{
-		; //TODO
+		; // TODO
 	}
 	else if (yixin_strnicmp(command, "blockpath", 9) == 0)
 	{
 		gchar _command[80];
-		int xl[MAX_SIZE*MAX_SIZE], yl[MAX_SIZE*MAX_SIZE];
+		int xl[MAX_SIZE * MAX_SIZE], yl[MAX_SIZE * MAX_SIZE];
 		int len = 0;
 
 		i = 9;
-		while (command[i] == '\t' || command[i] == ' ') i++;
+		while (command[i] == '\t' || command[i] == ' ')
+			i++;
 		for (; command[i];)
 		{
 			int x, y;
-			if (command[i] >= 'a' && command[i] <= 'z') command[i] = command[i] - 'a' + 'A';
-			if (command[i] < 'A' || command[i] > 'Z') break;
+			if (command[i] >= 'a' && command[i] <= 'z')
+				command[i] = command[i] - 'a' + 'A';
+			if (command[i] < 'A' || command[i] > 'Z')
+				break;
 			x = command[i] - 'A';
 			i++;
 			y = command[i] - '0';
@@ -3614,7 +3924,8 @@ void execute_command(gchar *command)
 				i++;
 			}
 			y = y - 1;
-			if (x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh) break;
+			if (x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh)
+				break;
 			xl[len] = boardsizeh - 1 - y;
 			yl[len] = x;
 			len++;
@@ -3661,8 +3972,10 @@ void execute_command(gchar *command)
 		do
 		{
 			int x, y;
-			if (command[11] >= 'a' && command[11] <= 'z') command[11] = command[11] - 'a' + 'A';
-			if (command[11] < 'A' || command[11] > 'Z') break;
+			if (command[11] >= 'a' && command[11] <= 'z')
+				command[11] = command[11] - 'a' + 'A';
+			if (command[11] < 'A' || command[11] > 'Z')
+				break;
 			x = command[11] - 'A';
 			y = command[12] - '0';
 			if (command[13] >= '0' && command[13] <= '9')
@@ -3670,7 +3983,8 @@ void execute_command(gchar *command)
 				y = y * 10 + command[13] - '0';
 			}
 			y--;
-			if (x<0 || x >= boardsizew || y<0 || y >= boardsizeh) break;
+			if (x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh)
+				break;
 			send_command("yxblockundo\n");
 			sprintf(_command, "%d,%d\n", boardsizeh - 1 - y, x);
 			send_command(_command);
@@ -3697,12 +4011,15 @@ void execute_command(gchar *command)
 			}
 		}
 		i = 13;
-		while (command[i] == '\t' || command[i] == ' ') i++;
+		while (command[i] == '\t' || command[i] == ' ')
+			i++;
 		for (; command[i];)
 		{
 			int x, y;
-			if (command[i] >= 'a' && command[i] <= 'z') command[i] = command[i] - 'a' + 'A';
-			if (command[i] < 'A' || command[i] > 'Z') break;
+			if (command[i] >= 'a' && command[i] <= 'z')
+				command[i] = command[i] - 'a' + 'A';
+			if (command[i] < 'A' || command[i] > 'Z')
+				break;
 			x = command[i] - 'A';
 			i++;
 			y = command[i] - '0';
@@ -3713,7 +4030,8 @@ void execute_command(gchar *command)
 				i++;
 			}
 			y = y - 1;
-			if (x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh) break;
+			if (x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh)
+				break;
 			boardblock[boardsizeh - 1 - y][x] = 0;
 		}
 		for (i = 0; i < boardsizeh; i++)
@@ -3738,8 +4056,10 @@ void execute_command(gchar *command)
 		do
 		{
 			int x, y;
-			if (command[6 + i] >= 'a' && command[6 + i] <= 'z') command[6 + i] = command[6 + i] - 'a' + 'A';
-			if (command[6 + i] < 'A' || command[6 + i] > 'Z') break;
+			if (command[6 + i] >= 'a' && command[6 + i] <= 'z')
+				command[6 + i] = command[6 + i] - 'a' + 'A';
+			if (command[6 + i] < 'A' || command[6 + i] > 'Z')
+				break;
 			x = command[6 + i] - 'A';
 			y = command[7 + i] - '0';
 			if (command[8 + i] >= '0' && command[8 + i] <= '9')
@@ -3750,7 +4070,8 @@ void execute_command(gchar *command)
 			i += 2;
 
 			y--;
-			if (x<0 || x >= boardsizew || y<0 || y >= boardsizeh) break;
+			if (x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh)
+				break;
 			send_command("yxblock\n");
 			sprintf(_command, "%d,%d\n", boardsizeh - 1 - y, x);
 			send_command(_command);
@@ -3767,8 +4088,10 @@ void execute_command(gchar *command)
 		{
 			int x, y, s;
 			s = command[12] - '0';
-			if (command[14] >= 'a' && command[14] <= 'z') command[14] = command[14] - 'a' + 'A';
-			if (command[14] < 'A' || command[14] > 'Z') break;
+			if (command[14] >= 'a' && command[14] <= 'z')
+				command[14] = command[14] - 'a' + 'A';
+			if (command[14] < 'A' || command[14] > 'Z')
+				break;
 			x = command[14] - 'A';
 			y = command[15] - '0';
 			if (command[16] >= '0' && command[16] <= '9')
@@ -3776,7 +4099,8 @@ void execute_command(gchar *command)
 				y = y * 10 + command[16] - '0';
 			}
 			y--;
-			if (s<0 || s>1 || x<0 || x >= boardsizew || y<0 || y >= boardsizeh) break;
+			if (s < 0 || s > 1 || x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh)
+				break;
 			sprintf(_command, "yxforbid del %d %d %d\n", boardsizeh - 1 - y, x, s);
 			send_command(_command);
 		} while (0);
@@ -3788,8 +4112,10 @@ void execute_command(gchar *command)
 		{
 			int x, y, s;
 			s = command[7] - '0';
-			if (command[9] >= 'a' && command[9] <= 'z') command[9] = command[9] - 'a' + 'A';
-			if (command[9] < 'A' || command[9] > 'Z') break;
+			if (command[9] >= 'a' && command[9] <= 'z')
+				command[9] = command[9] - 'a' + 'A';
+			if (command[9] < 'A' || command[9] > 'Z')
+				break;
 			x = command[9] - 'A';
 			y = command[10] - '0';
 			if (command[11] >= '0' && command[11] <= '9')
@@ -3797,7 +4123,8 @@ void execute_command(gchar *command)
 				y = y * 10 + command[11] - '0';
 			}
 			y--;
-			if (s<0 || s>1 || x<0 || x >= boardsizew || y<0 || y >= boardsizeh) break;
+			if (s < 0 || s > 1 || x < 0 || x >= boardsizew || y < 0 || y >= boardsizeh)
+				break;
 			sprintf(_command, "yxforbid add %d %d %d\n", boardsizeh - 1 - y, x, s);
 			send_command(_command);
 		} while (0);
@@ -3891,7 +4218,7 @@ void execute_command(gchar *command)
 		int n;
 		if (sscanf(command + 8 + 1, "%d", &n) != EOF)
 		{
-			show_dialog_custom_hotkey(NULL, (gpointer)(n - 1));
+			show_dialog_custom_hotkey(NULL, GINT_TO_POINTER(n - 1));
 		}
 	}
 	else if (yixin_strnicmp(command, "key add", 7) == 0)
@@ -3901,7 +4228,7 @@ void execute_command(gchar *command)
 			hotkeynum++;
 			strcpy(hotkeycommand[hotkeynum - 1], "\n");
 			hotkeykey[hotkeynum - 1] = 0;
-			show_dialog_custom_hotkey(NULL, (gpointer)(hotkeynum - 1));
+			show_dialog_custom_hotkey(NULL, GINT_TO_POINTER(hotkeynum - 1));
 		}
 	}
 	else if (yixin_strnicmp(command, "key remove", 10) == 0)
@@ -3916,7 +4243,7 @@ void execute_command(gchar *command)
 		int n;
 		if (sscanf(command + 12 + 1, "%d", &n) != EOF)
 		{
-			show_dialog_custom_toolbar(NULL, (gpointer)(n - 1));
+			show_dialog_custom_toolbar(NULL, GINT_TO_POINTER(n - 1));
 		}
 	}
 	else if (yixin_strnicmp(command, "toolbar add", 11) == 0)
@@ -3927,7 +4254,7 @@ void execute_command(gchar *command)
 			toolbarlng[toolbarnum - 1] = 92;
 			toolbaricon[toolbarnum - 1] = strdup("gtk-about");
 			strcpy(toolbarcommand[toolbarnum - 1], "\n");
-			show_dialog_custom_toolbar(NULL, (gpointer)(toolbarnum-1));
+			show_dialog_custom_toolbar(NULL, GINT_TO_POINTER(toolbarnum - 1));
 		}
 	}
 	else if (yixin_strnicmp(command, "toolbar remove", 14) == 0)
@@ -3981,15 +4308,16 @@ void execute_command(gchar *command)
 		int s;
 		int t;
 		t = command[7] - '0';
-		if (sscanf(command + 8, "%d", &s) != 1) s = 0;
+		if (sscanf(command + 8, "%d", &s) != 1)
+			s = 0;
 		sprintf(_command, "start %d %d\n", boardsizew, boardsizeh);
 		send_command(_command);
 		sprintf(_command, "yxboard\n");
 		send_command(_command);
-		for (i = 0; i<piecenum; i++)
+		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+					movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 			send_command(_command);
 		}
 		sprintf(_command, "done\n");
@@ -4001,17 +4329,18 @@ void execute_command(gchar *command)
 	{
 		gchar _command[80];
 		int s;
-		if (sscanf(command + 5, "%d", &s) != 1) s = 2;
+		if (sscanf(command + 5, "%d", &s) != 1)
+			s = 2;
 		sprintf(_command, "info nbestsym %d\n", nbestsym);
 		send_command(_command);
 		sprintf(_command, "start %d %d\n", boardsizew, boardsizeh);
 		send_command(_command);
 		sprintf(_command, "yxboard\n");
 		send_command(_command);
-		for (i = 0; i<piecenum; i++)
+		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+					movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 			send_command(_command);
 		}
 		sprintf(_command, "done\n");
@@ -4026,10 +4355,10 @@ void execute_command(gchar *command)
 		send_command(_command);
 		sprintf(_command, "yxboard\n");
 		send_command(_command);
-		for (i = 0; i<piecenum; i++)
+		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+					movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 			send_command(_command);
 		}
 		sprintf(_command, "done\n");
@@ -4044,7 +4373,7 @@ void execute_command(gchar *command)
 		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew);
+					movepath[i] % boardsizew);
 			send_command(_command);
 		}
 		send_command("done\n");
@@ -4056,7 +4385,7 @@ void execute_command(gchar *command)
 		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew);
+					movepath[i] % boardsizew);
 			send_command(_command);
 		}
 		send_command("done\n");
@@ -4070,7 +4399,8 @@ void execute_command(gchar *command)
 			strcpy(_command, cmdhead);
 			int i = sizeof(cmdhead) - 1;
 			char *comment = __invT(command + 13 + 1);
-			for (int j = 0; comment[j] && i < sizeof(_command) - 3; j++) {
+			for (int j = 0; comment[j] && i < sizeof(_command) - 3; j++)
+			{
 				if (comment[j] == '"')
 				{
 					_command[i++] = '\\';
@@ -4080,7 +4410,7 @@ void execute_command(gchar *command)
 				{
 					_command[i++] = '\\';
 					_command[i++] = '\\';
-				} 
+				}
 				else
 					_command[i++] = comment[j];
 			}
@@ -4099,27 +4429,28 @@ void execute_command(gchar *command)
 			execute_command("dbtext");
 		}
 	}
-	else if (yixin_strnicmp(command, "dbeditlabelpoint", 16) == 0) 
+	else if (yixin_strnicmp(command, "dbeditlabelpoint", 16) == 0)
 	{
 		gchar _command[80];
 		int len = strlen(command);
 		if (len >= 14 && piecenum >= 1)
 		{
 			char boardtext[64];
-			if (len >= 64) command[64] = '\0'; // only allow up to 64 characters
+			if (len >= 64)
+				command[64] = '\0'; // only allow up to 64 characters
 			memset(boardtext, 0, sizeof(boardtext));
 			sscanf(command + 16 + 1, "%s", boardtext);
-			
-			int x = movepath[piecenum-1] / boardsizew;
-			int y = movepath[piecenum-1] % boardsizew;
+
+			int x = movepath[piecenum - 1] / boardsizew;
+			int y = movepath[piecenum - 1] % boardsizew;
 			char *text = __invT(boardtext);
 			sprintf(_command, "yxeditlabeldatabase %d,%d %s\n", x, y, text);
 			g_free(text);
-			
-			send_command(_command); 
-			for (i = 0; i < piecenum - 1; i++) 
+
+			send_command(_command);
+			for (i = 0; i < piecenum - 1; i++)
 			{
-				sprintf(_command, "%d,%d\n", movepath[i] / boardsizew, movepath[i] % boardsizew); 
+				sprintf(_command, "%d,%d\n", movepath[i] / boardsizew, movepath[i] % boardsizew);
 				send_command(_command);
 			}
 			send_command("done\n");
@@ -4127,8 +4458,8 @@ void execute_command(gchar *command)
 			show_database();
 		}
 	}
-	else if (yixin_strnicmp(command, "dbeditlabel", 11) == 0) 
-	{ 
+	else if (yixin_strnicmp(command, "dbeditlabel", 11) == 0)
+	{
 		gchar _command[80];
 		int len = strlen(command);
 		if (len >= 14)
@@ -4136,24 +4467,25 @@ void execute_command(gchar *command)
 			char boardtext[64];
 			char xcoord;
 			int ycoord;
-			if (len >= 64) command[64] = '\0'; // only allow up to 64 characters
+			if (len >= 64)
+				command[64] = '\0'; // only allow up to 64 characters
 			memset(boardtext, 0, sizeof(boardtext));
 			sscanf(command + 11 + 1, "%c %d %s", &xcoord, &ycoord, boardtext);
 			if (xcoord >= 'a' && xcoord <= 'z')
-				xcoord = xcoord - 'a' + 'A';  // convert to upper case
-			
+				xcoord = xcoord - 'a' + 'A'; // convert to upper case
+
 			int x = boardsizeh - ycoord, y = xcoord - 'A';
 			char *text = __invT(boardtext);
 			sprintf(_command, "yxeditlabeldatabase %d,%d %s\n", x, y, text);
 			g_free(text);
-			
-			send_command(_command); 
-			for (i = 0; i < piecenum; i++) 
+
+			send_command(_command);
+			for (i = 0; i < piecenum; i++)
 			{
-				sprintf(_command, "%d,%d\n", movepath[i] / boardsizew, movepath[i] % boardsizew); 
+				sprintf(_command, "%d,%d\n", movepath[i] / boardsizew, movepath[i] % boardsizew);
 				send_command(_command);
 			}
-			send_command("done\n"); 
+			send_command("done\n");
 
 			show_database();
 		}
@@ -4168,7 +4500,7 @@ void execute_command(gchar *command)
 			for (i = 0; i < piecenum; i++)
 			{
 				sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-					movepath[i] % boardsizew);
+						movepath[i] % boardsizew);
 				send_command(_command);
 			}
 			send_command("done\n");
@@ -4186,7 +4518,7 @@ void execute_command(gchar *command)
 			for (i = 0; i < piecenum; i++)
 			{
 				sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-					movepath[i] % boardsizew);
+						movepath[i] % boardsizew);
 				send_command(_command);
 			}
 			send_command("done\n");
@@ -4204,7 +4536,7 @@ void execute_command(gchar *command)
 			for (i = 0; i < piecenum; i++)
 			{
 				sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-					movepath[i] % boardsizew);
+						movepath[i] % boardsizew);
 				send_command(_command);
 			}
 			send_command("done\n");
@@ -4313,8 +4645,9 @@ void execute_command(gchar *command)
 
 		if (command[7] == 0 || command[7] == '\n' || command[7] == '\r')
 		{
-			const char* libfilename = show_dialog_libselect(NULL, windowmain, 0);
-			if (libfilename) {
+			const char *libfilename = show_dialog_libselect(NULL, windowmain, 0);
+			if (libfilename)
+			{
 				send_command("yxlibtodb\n");
 				send_command(libfilename);
 				show_database();
@@ -4353,8 +4686,9 @@ void execute_command(gchar *command)
 		sprintf(_command, "%s", command + 5 + 1);
 		if (command[5] == 0 || command[5] == '\n' || command[5] == '\r' || command[5] == 'o')
 		{
-			const char* dbfilename = show_dialog_dbselect(NULL, windowmain, command[5] == 'o' ? 0 : 1);
-			if (dbfilename) {
+			const char *dbfilename = show_dialog_dbselect(NULL, windowmain, command[5] == 'o' ? 0 : 1);
+			if (dbfilename)
+			{
 				send_command("yxsetdatabase\n");
 				send_command(dbfilename);
 				show_database();
@@ -4406,7 +4740,7 @@ void execute_command(gchar *command)
 		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew);
+					movepath[i] % boardsizew);
 			send_command(_command);
 		}
 		send_command("done\n");
@@ -4418,7 +4752,7 @@ void execute_command(gchar *command)
 		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew);
+					movepath[i] % boardsizew);
 			send_command(_command);
 		}
 		send_command("done\n");
@@ -4430,114 +4764,111 @@ void execute_command(gchar *command)
 		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew);
+					movepath[i] % boardsizew);
 			send_command(_command);
 		}
 		send_command("done\n");
 	}
 	else if (yixin_strnicmp(command, "dbdel all nonwl", 15) == 0)
 	{
-		if (!show_dbdelall_query()) return;
+		if (!show_dbdelall_query())
+			return;
 		gchar _command[80];
-		send_command(yixin_strnicmp(command, "dbdel all nonwl recursive", 25) == 0 ? 
-					"yxdeletedatabaseall nonwlrecursive\n" : 
-					"yxdeletedatabaseall nonwl\n");
+		send_command(yixin_strnicmp(command, "dbdel all nonwl recursive", 25) == 0 ? "yxdeletedatabaseall nonwlrecursive\n" : "yxdeletedatabaseall nonwl\n");
 		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew);
+					movepath[i] % boardsizew);
 			send_command(_command);
 		}
 		send_command("done\n");
 	}
 	else if (yixin_strnicmp(command, "dbdel all wlnostep", 18) == 0)
 	{
-		if (!show_dbdelall_query()) return;
+		if (!show_dbdelall_query())
+			return;
 		gchar _command[80];
-		send_command(yixin_strnicmp(command, "dbdel all wlnostep recursive", 28) == 0 ? 
-					"yxdeletedatabaseall wlnosteprecursive\n" : 
-					"yxdeletedatabaseall wlnostep\n");
+		send_command(yixin_strnicmp(command, "dbdel all wlnostep recursive", 28) == 0 ? "yxdeletedatabaseall wlnosteprecursive\n" : "yxdeletedatabaseall wlnostep\n");
 		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew);
+					movepath[i] % boardsizew);
 			send_command(_command);
 		}
 		send_command("done\n");
 	}
 	else if (yixin_strnicmp(command, "dbdel all wlinstep", 18) == 0)
 	{
-		if (!show_dbdelall_query()) return;
+		if (!show_dbdelall_query())
+			return;
 		gchar _command[80];
 		int recursive = yixin_strnicmp(command, "dbdel all wlinstep recursive", 28) == 0;
 		int matestep = 1;
 		sscanf(command + (recursive ? 29 : 19), "%d", &matestep);
-		sprintf(_command, 
+		sprintf(_command,
 				(recursive ? "yxdeletedatabaseall wlinsteprecursive %d\n" : "yxdeletedatabaseall wlinstep %d\n"),
 				matestep);
 		send_command(_command);
 		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew);
+					movepath[i] % boardsizew);
 			send_command(_command);
 		}
 		send_command("done\n");
 	}
 	else if (yixin_strnicmp(command, "dbdel all wl", 12) == 0)
 	{
-		if (!show_dbdelall_query()) return;
+		if (!show_dbdelall_query())
+			return;
 		gchar _command[80];
-		send_command(yixin_strnicmp(command, "dbdel all wl recursive", 22) == 0 ? 
-					"yxdeletedatabaseall wlrecursive\n" : 
-					"yxdeletedatabaseall wl\n");
+		send_command(yixin_strnicmp(command, "dbdel all wl recursive", 22) == 0 ? "yxdeletedatabaseall wlrecursive\n" : "yxdeletedatabaseall wl\n");
 		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew);
+					movepath[i] % boardsizew);
 			send_command(_command);
 		}
 		send_command("done\n");
 	}
 	else if (yixin_strnicmp(command, "dbdel all w", 11) == 0)
 	{
-		if (!show_dbdelall_query()) return;
+		if (!show_dbdelall_query())
+			return;
 		gchar _command[80];
-		send_command(yixin_strnicmp(command, "dbdel all w recursive", 21) == 0 ? 
-					"yxdeletedatabaseall wrecursive\n" : 
-					"yxdeletedatabaseall w\n");
+		send_command(yixin_strnicmp(command, "dbdel all w recursive", 21) == 0 ? "yxdeletedatabaseall wrecursive\n" : "yxdeletedatabaseall w\n");
 		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew);
+					movepath[i] % boardsizew);
 			send_command(_command);
 		}
 		send_command("done\n");
 	}
 	else if (yixin_strnicmp(command, "dbdel all l", 11) == 0)
 	{
-		if (!show_dbdelall_query()) return;
+		if (!show_dbdelall_query())
+			return;
 		gchar _command[80];
-		send_command(yixin_strnicmp(command, "dbdel all l recursive", 21) == 0 ? 
-					"yxdeletedatabaseall lrecursive\n" : 
-					"yxdeletedatabaseall l\n");
+		send_command(yixin_strnicmp(command, "dbdel all l recursive", 21) == 0 ? "yxdeletedatabaseall lrecursive\n" : "yxdeletedatabaseall l\n");
 		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew);
+					movepath[i] % boardsizew);
 			send_command(_command);
 		}
 		send_command("done\n");
 	}
 	else if (yixin_strnicmp(command, "dbdel all", 9) == 0)
 	{
-		if (!show_dbdelall_query()) return;
+		if (!show_dbdelall_query())
+			return;
 		gchar _command[80];
 		send_command("yxdeletedatabaseall\n");
 		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew);
+					movepath[i] % boardsizew);
 			send_command(_command);
 		}
 		send_command("done\n");
@@ -4548,8 +4879,9 @@ void execute_command(gchar *command)
 		sprintf(_command, "%s", command + 7 + 1);
 		if (command[7] == 0 || command[7] == '\n' || command[7] == '\r')
 		{
-			const char* dbfilename = show_dialog_dbselect(NULL, windowmain, 0);
-			if (dbfilename) {
+			const char *dbfilename = show_dialog_dbselect(NULL, windowmain, 0);
+			if (dbfilename)
+			{
 				send_command("yxdbmerge\n");
 				send_command(dbfilename);
 				show_database();
@@ -4585,10 +4917,10 @@ void execute_command(gchar *command)
 		send_command(_command);
 		sprintf(_command, "yxboard\n");
 		send_command(_command);
-		for (i = 0; i<piecenum; i++)
+		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+					movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 			send_command(_command);
 		}
 		sprintf(_command, "done\n");
@@ -4597,8 +4929,9 @@ void execute_command(gchar *command)
 		sprintf(_command, "%s", command + 7 + 1);
 		if (command[7] == 0 || command[7] == '\n' || command[7] == '\r')
 		{
-			const char* dbfilename = show_dialog_dbselect(NULL, windowmain, 1);
-			if (dbfilename) {
+			const char *dbfilename = show_dialog_dbselect(NULL, windowmain, 1);
+			if (dbfilename)
+			{
 				send_command("yxdbsplit\n");
 				send_command(dbfilename);
 			}
@@ -4627,7 +4960,7 @@ void execute_command(gchar *command)
 	}
 	else if (yixin_strnicmp(command, "makebook", 8) == 0)
 	{
-		; //TODO
+		; // TODO
 	}
 	else if (yixin_strnicmp(command, "print features", 14) == 0)
 	{
@@ -4640,16 +4973,17 @@ void execute_command(gchar *command)
 		send_command(_command);
 		sprintf(_command, "yxboard\n");
 		send_command(_command);
-		for (i = 0; i<piecenum; i++)
+		for (i = 0; i < piecenum; i++)
 		{
 			sprintf(_command, "%d,%d,%d\n", movepath[i] / boardsizew,
-				movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+					movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 			send_command(_command);
 		}
 		sprintf(_command, "done\n");
 		send_command(_command);
 	}
-	else if (yixin_strnicmp(command, "dbrefresh", 9) == 0) {
+	else if (yixin_strnicmp(command, "dbrefresh", 9) == 0)
+	{
 		char command[80];
 		sprintf(command, "info usedatabase %d\n", usedatabase);
 		send_command(command);
@@ -4676,11 +5010,11 @@ gboolean key_command(GtkWidget *widget, GdkEventKey *event, gpointer data)
 	GtkTextIter start, end;
 	gchar *command;
 
-	if (event->keyval == GDK_Return && !(event->state & GDK_CONTROL_MASK))
+	if (event->keyval == GDK_KEY_Return && !(event->state & GDK_CONTROL_MASK))
 	{
 		gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffertextcommand), &start, &end);
 		command = gtk_text_buffer_get_text(GTK_TEXT_BUFFER(buffertextcommand), &start, &end, FALSE);
-		
+
 		custom_function(command);
 
 		gtk_text_buffer_delete(buffertextcommand, &start, &end);
@@ -4704,7 +5038,8 @@ void dbcomment_changed(GtkWidget *widget, gpointer data)
 	strcpy(_command, cmdhead);
 
 	int i = sizeof(cmdhead) - 1;
-	for (int j = 0; comment[j] && i < sizeof(_command) - 3; j++) {
+	for (int j = 0; comment[j] && i < sizeof(_command) - 3; j++)
+	{
 		if (comment[j] == '"')
 		{
 			_command[i++] = '\\';
@@ -4714,7 +5049,7 @@ void dbcomment_changed(GtkWidget *widget, gpointer data)
 		{
 			_command[i++] = '\\';
 			_command[i++] = '\\';
-		} 
+		}
 		else
 			_command[i++] = comment[j];
 	}
@@ -4735,28 +5070,37 @@ void textpos_changed(GtkWidget *widget, gpointer data)
 {
 	if (isthinking)
 		return;
-	
+
 	GtkTextIter start, end;
 	gchar *posstr, *command;
 	gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffertextpos), &start, &end);
 	posstr = gtk_text_buffer_get_text(GTK_TEXT_BUFFER(buffertextpos), &start, &end, FALSE);
 
 	int j = 0;
-    for (int i = 0; posstr[i]; i++) {
-        if (posstr[i] != ' ')
-            posstr[j++] = posstr[i];
-    }
-    posstr[j] = '\0';
+	for (int i = 0; posstr[i]; i++)
+	{
+		if (posstr[i] != ' ')
+			posstr[j++] = posstr[i];
+	}
+	posstr[j] = '\0';
 
 	int valid = 1;
-	for (int i = 0; posstr[i]; )
+	for (int i = 0; posstr[i];)
 	{
-		if (!((posstr[i] >= 'a' && posstr[i] <= 'z') || (posstr[i] >= 'A' && posstr[i] <= 'Z'))) 
-		{ valid = 0; break; }
+		if (!((posstr[i] >= 'a' && posstr[i] <= 'z') || (posstr[i] >= 'A' && posstr[i] <= 'Z')))
+		{
+			valid = 0;
+			break;
+		}
 		i++;
-		if (posstr[i] < '0' || posstr[i] > '9') { valid = 0; break; }
+		if (posstr[i] < '0' || posstr[i] > '9')
+		{
+			valid = 0;
+			break;
+		}
 		i++;
-		if (posstr[i] >= '0' && posstr[i] <= '9') i++;
+		if (posstr[i] >= '0' && posstr[i] <= '9')
+			i++;
 	}
 
 	if (valid)
@@ -4768,14 +5112,16 @@ void textpos_changed(GtkWidget *widget, gpointer data)
 	g_free(posstr);
 }
 
-void textpos_button_clicked(GtkWidget *button, gpointer data) {
-    if (data == 1)
+void textpos_button_clicked(GtkWidget *button, gpointer data)
+{
+	if (GPOINTER_TO_INT(data) == 1)
 		execute_command("getposclipboard");
-	else if (data == 2 && !isthinking)
+	else if (GPOINTER_TO_INT(data) == 2 && !isthinking)
 		execute_command("putposclipboard");
 }
 
-gboolean on_windows_close(GtkWidget *widget, GdkEvent *event, gpointer data) {
+gboolean on_windows_close(GtkWidget *widget, GdkEvent *event, gpointer data)
+{
 	yixin_quit();
 	return usedatabase != 0;
 }
@@ -4791,7 +5137,7 @@ void save_setting()
 		fprintf(out, "%d %d\t;board size (10 ~ %d)\n", rboardsizeh, rboardsizew, MAX_SIZE);
 		fprintf(out, "%d\t;language (0: English, 1,2,...: custom)\n", rlanguage);
 		fprintf(out, "%d\t;rule (0: freestyle, 1: standard, 2: free renju, 3: swap after 1st move, 5: soosorv, 6: swap-2)\n",
-			specialrule == 4 ? 6 : (specialrule == 3 ? 5 : (specialrule == 2 ? 3 : inforule)));
+				specialrule == 4 ? 6 : (specialrule == 3 ? 5 : (specialrule == 2 ? 3 : inforule)));
 		fprintf(out, "%d\t;computer play black (0: no, 1: yes)\n", computerside & 1);
 		fprintf(out, "%d\t;computer play white (0: no, 1: yes)\n", computerside >> 1);
 		fprintf(out, "%d\t;level (0: unlimited time 1: custom level 2-: predefined level)\n", levelchoice);
@@ -4813,7 +5159,7 @@ void save_setting()
 		fprintf(out, "%d\t;pondering (0: off, 1: on)\n", infopondering);
 		fprintf(out, "%d\t;checkmate in global search (0: no, 1: vct, 2: vc2)\n", infovcthread);
 		fprintf(out, "%d\t;hash autoclear (0: no, 1: yes)\n", hashautoclear);
-		fprintf(out, "%d\t;toolbar postion (0: left, 1: right)\n", toolbarpos);
+		fprintf(out, "%d\t;toolbar postion (0: left vertical, 1: right vertical)\n", toolbarpos);
 		fprintf(out, "%d\t;toolbar item number (<=64)\n", toolbarnum);
 		fprintf(out, "%d\t;hotkey number (<=64)\n", hotkeynum);
 		fprintf(out, "%d\t;show clock (0: no, 1: yes)\n", showclock);
@@ -4934,8 +5280,10 @@ void clock_label_refresh()
 	{
 		tl_match = timeoutmatch - (timercomputermatch + timercomputerturn) + timercomputerincrement;
 		tl_turn = min(timeoutturn - timercomputerturn, tl_match);
-		if (tl_turn < 0) tl_turn = 0;
-		if (tl_match < 0) tl_match = 0;
+		if (tl_turn < 0)
+			tl_turn = 0;
+		if (tl_match < 0)
+			tl_match = 0;
 		if ((tl_turn / 60 / 60 / 1000) >= 100)
 		{
 			h_turn = 99;
@@ -4974,8 +5322,10 @@ void clock_label_refresh()
 	{
 		tl_match = timeoutmatch - (timerhumanmatch + timerhumanturn) + timerhumanincrement;
 		tl_turn = min(timeoutturn - timerhumanturn, tl_match);
-		if (tl_turn < 0) tl_turn = 0;
-		if (tl_match < 0) tl_match = 0;
+		if (tl_turn < 0)
+			tl_turn = 0;
+		if (tl_match < 0)
+			tl_match = 0;
 		if ((tl_turn / 60 / 60 / 1000) >= 100)
 		{
 			h_turn = 99;
@@ -5003,7 +5353,7 @@ void clock_label_refresh()
 	}
 	sprintf(t, " Left: %02d:%02d:%02d / %02d:%02d:%02d ", h_turn, m_turn, s_turn, h_match, m_match, s_match);
 	gtk_label_set_label(clocklabel[3], t);
-	
+
 	if (checktimeout && timeoutflag == 0)
 	{
 		if ((h_turn == 0 && m_turn == 0 && s_turn == 0) ||
@@ -5055,8 +5405,10 @@ gboolean clock_timer_update()
 
 void clock_timer_change_status(int status)
 {
-	if (timerstatus == 0) return;
-	if (timerstatus == status) return;
+	if (timerstatus == 0)
+		return;
+	if (timerstatus == status)
+		return;
 	if (status == 0)
 	{
 		timerstatus = 0;
@@ -5095,14 +5447,13 @@ void clock_timer_init()
 	clock_label_refresh();
 }
 
-
-GdkPixbuf * copy_subpixbuf(GdkPixbuf *_src, int src_x, int src_y, int width, int height)
+GdkPixbuf *copy_subpixbuf(GdkPixbuf *_src, int src_x, int src_y, int width, int height)
 {
 	GdkPixbuf *dst, *src;
 	int sample, channels;
 	gboolean alpha;
 	GdkColorspace colorspace;
-	
+
 	guchar *pixels1, *pixels2;
 	int rowstride1, rowstride2;
 	int i, j;
@@ -5119,13 +5470,13 @@ GdkPixbuf * copy_subpixbuf(GdkPixbuf *_src, int src_x, int src_y, int width, int
 
 	rowstride1 = gdk_pixbuf_get_rowstride(src);
 	rowstride2 = gdk_pixbuf_get_rowstride(dst);
-	for(i=0; i<height; i++)
+	for (i = 0; i < height; i++)
 	{
-		for(j=0; j<width; j++)
+		for (j = 0; j < width; j++)
 		{
 			guchar *p1, *p2;
-			p1 = pixels1 + i*rowstride1 + j*channels;
-			p2 = pixels2 + i*rowstride2 + j*channels;
+			p1 = pixels1 + i * rowstride1 + j * channels;
+			p2 = pixels2 + i * rowstride2 + j * channels;
 			memcpy(p2, p1, channels);
 		}
 	}
@@ -5144,7 +5495,7 @@ gboolean key_press(GtkWidget *widget, GdkEventKey *event, gpointer data)
 		int keymask = (hotkeykeylist[hotkeykey[i]][0] & GDK_CONTROL_MASK) != 0;
 		if (!(hasmask ^ keymask) && event->keyval == hotkeykeylist[hotkeykey[i]][1])
 		{
-			hotkey_function(widget, (gpointer)i);
+			hotkey_function(widget, GINT_TO_POINTER(i));
 			return TRUE;
 		}
 	}
@@ -5152,7 +5503,7 @@ gboolean key_press(GtkWidget *widget, GdkEventKey *event, gpointer data)
 	return FALSE;
 }
 
-gboolean key_release(GtkWidget *widget, GdkEventKey  *event, gpointer data)
+gboolean key_release(GtkWidget *widget, GdkEventKey *event, gpointer data)
 {
 	isctrlpressed = (event->state & GDK_CONTROL_MASK) == GDK_CONTROL_MASK;
 	return FALSE;
@@ -5165,7 +5516,7 @@ void create_windowclock()
 	windowclock = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_resizable(GTK_WINDOW(windowclock), FALSE);
 	gtk_window_set_deletable(GTK_WINDOW(windowclock), FALSE);
-	g_signal_connect(GTK_OBJECT(windowclock), "delete_event", G_CALLBACK(windowclock_delete), NULL);
+	g_signal_connect(G_OBJECT(windowclock), "delete_event", G_CALLBACK(windowclock_delete), NULL);
 	gtk_window_set_title(GTK_WINDOW(windowclock), "Clock");
 	gtk_window_set_type_hint(GTK_WINDOW(windowclock), GDK_WINDOW_TYPE_HINT_DIALOG);
 
@@ -5176,14 +5527,14 @@ void create_windowclock()
 
 	playerlabel[0] = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(playerlabel[0]), "<big><b>Computer</b></big>");
-	//gtk_label_set_markup(GTK_LABEL(playerlabel[0]), "<big><b>Yixin</b></big>");
+	// gtk_label_set_markup(GTK_LABEL(playerlabel[0]), "<big><b>Yixin</b></big>");
 
 	playerlabel[1] = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(playerlabel[1]), "<big><b>Human</b></big>");
-	//gtk_label_set_markup(GTK_LABEL(playerlabel[1]), "<big><b>Lin Shu-Hsuan</b></big>");
-	//gtk_label_set_markup(GTK_LABEL(playerlabel[1]), "<big><b>Rudolf Dupszki</b></big>");
+	// gtk_label_set_markup(GTK_LABEL(playerlabel[1]), "<big><b>Lin Shu-Hsuan</b></big>");
+	// gtk_label_set_markup(GTK_LABEL(playerlabel[1]), "<big><b>Rudolf Dupszki</b></big>");
 
-	vbox = gtk_vbox_new(FALSE, 0);
+	vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
 
 	gtk_box_pack_start(GTK_BOX(vbox), playerlabel[0], FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(vbox), clocklabel[0], FALSE, FALSE, 3);
@@ -5204,15 +5555,72 @@ void create_windowclock()
 	}
 }
 
+gboolean create_menu_proxy(GtkToolItem *tool_item, gpointer user_data)
+{
+	int i = GPOINTER_TO_INT(user_data);
+	// 创建带图标的溢出菜单项
+	GtkWidget *menu_item = gtk_menu_item_new();
+	GtkWidget *menu_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2); // 减少间距到2像素
+	
+	// 设置菜单项的CSS样式来减少内边距
+	GtkStyleContext *context = gtk_widget_get_style_context(menu_item);
+	GtkCssProvider *provider = gtk_css_provider_new();
+	gtk_css_provider_load_from_data(provider,
+		"menuitem { padding: 4px 0px; }", -1, NULL);
+	gtk_style_context_add_provider(context,
+		GTK_STYLE_PROVIDER(provider),
+		GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+	g_object_unref(provider);
+	
+	GtkWidget *menu_image = NULL;
+	GtkWidget *menu_label = gtk_label_new(_T(clanguage[toolbarlng[i]]));
+
+	// 创建菜单图标 - 复用工具栏图标的逻辑
+	if (toolbaricon[i] && g_file_test(toolbaricon[i], G_FILE_TEST_EXISTS))
+	{
+		// 这是一个文件路径
+		GdkPixbuf *original_pixbuf = gdk_pixbuf_new_from_file(toolbaricon[i], NULL);
+		if (original_pixbuf)
+		{
+			// 缩放到菜单合适的大小（16x16像素）
+			GdkPixbuf *scaled_pixbuf = gdk_pixbuf_scale_simple(original_pixbuf, 16, 16, GDK_INTERP_BILINEAR);
+			menu_image = gtk_image_new_from_pixbuf(scaled_pixbuf);
+			g_object_unref(original_pixbuf);
+			g_object_unref(scaled_pixbuf);
+		}
+	}
+	else if (toolbaricon[i])
+	{
+		// 这是一个图标名称，使用图标主题
+		menu_image = gtk_image_new_from_icon_name(toolbaricon[i], GTK_ICON_SIZE_MENU);
+	}
+
+	// 如果没有图标，创建一个占位符
+	if (!menu_image)
+	{
+		menu_image = gtk_image_new_from_icon_name("image-missing", GTK_ICON_SIZE_MENU);
+	}
+
+	// 将图标和标签添加到盒子中
+	gtk_box_pack_start(GTK_BOX(menu_box), menu_image, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(menu_box), menu_label, TRUE, TRUE, 0);
+
+	// 将盒子添加到菜单项中
+	gtk_container_add(GTK_CONTAINER(menu_item), menu_box);
+	gtk_widget_show_all(menu_item);
+
+	g_signal_connect(G_OBJECT(menu_item), "activate", G_CALLBACK(toolbar_function), GINT_TO_POINTER(i));
+	gtk_tool_item_set_proxy_menu_item(tool_item, g_strdup_printf("overflow-proxy-%d", i), menu_item);
+}
+
 void create_windowmain()
 {
 	GtkWidget *menubar, *menugame, *menuplayers, *menuview, *menuhelp, *menurule, *menulanguage;
 	GtkWidget *menuitemgame, *menuitemplayers, *menuitemview, *menuitemhelp;
 	GtkWidget *menuitemnewgame, *menuitemload, *menuitemsave, *menuitemrule, *menuitemsize, *menuitemquit,
 		*menuitemrule1, *menuitemrule2, *menuitemrule3, *menuitemrule4, *menuitemrule5, *menuitemrule6, *menuitemrule7, *menuitemrule8;
-	//GtkWidget *menuitemnewrule[10]; //TODO
 	GtkWidget *menuitemcomputerplaysblack, *menuitemcomputerplayswhite, *menuitemchecktimeout, *menuitemsettings;
-	GtkWidget *menuitemlanguage, *menuitemenglish, *menuitemcustomlng[16] = { 0 }; //At most (16-1) different custom languages
+	GtkWidget *menuitemlanguage, *menuitemenglish, *menuitemcustomlng[16] = {0};
 	GtkWidget *menuitemnumeration, *menuitemlog, *menuitemanalysis, *menuitemclock, *menuitemforbidden;
 	GtkWidget *menuitemabout, *menuitemdatabase, *menuitemdbreadonly, *menuitemboardtext;
 
@@ -5234,94 +5642,99 @@ void create_windowmain()
 	int i, j, k, l;
 
 	windowmain = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_resizable(GTK_WINDOW(windowmain), FALSE); /* do not allow maximizing the window */
-	g_signal_connect(GTK_OBJECT(windowmain), "delete-event", G_CALLBACK(on_windows_close), NULL);
-	gtk_widget_add_events(windowmain, GDK_BUTTON_PRESS_MASK); /* add the button clicking event */
-	gtk_signal_connect(GTK_OBJECT(windowmain), "button_press_event", G_CALLBACK(on_button_press_windowmain), NULL);
+	gtk_window_set_resizable(GTK_WINDOW(windowmain), FALSE);
+	g_signal_connect(G_OBJECT(windowmain), "delete-event", G_CALLBACK(on_windows_close), NULL);
 	gtk_window_set_title(GTK_WINDOW(windowmain), "Yixin");
-	tableboard = gtk_table_new(boardsizeh+1, boardsizew+1, TRUE);
-	gtk_table_set_row_spacings(GTK_TABLE(tableboard), 0); /* set the row distance between elements to be 0 */
-	gtk_table_set_col_spacings(GTK_TABLE(tableboard), 0); /* set the column distance between elements to be 0 */
+	tableboard = gtk_grid_new();
+	gtk_grid_set_row_spacing(GTK_GRID(tableboard), 0);
+	gtk_grid_set_column_spacing(GTK_GRID(tableboard), 0);
+	gtk_grid_set_row_homogeneous(GTK_GRID(tableboard), TRUE);
+	gtk_grid_set_column_homogeneous(GTK_GRID(tableboard), TRUE);
+
+	GtkWidget *eventbox_board = gtk_event_box_new();
+	gtk_container_add(GTK_CONTAINER(eventbox_board), tableboard);
+	gtk_widget_add_events(eventbox_board, GDK_BUTTON_PRESS_MASK);
+	g_signal_connect(G_OBJECT(eventbox_board), "button_press_event", G_CALLBACK(on_button_press_windowmain), NULL);
 
 	pixbuf = gdk_pixbuf_new_from_file(piecepicname, NULL);
 	size = gdk_pixbuf_get_height(pixbuf);
 	sample = gdk_pixbuf_get_bits_per_sample(pixbuf);
 	alpha = gdk_pixbuf_get_has_alpha(pixbuf);
 	colorspace = gdk_pixbuf_get_colorspace(pixbuf);
-	background = gdk_pixbuf_new_subpixbuf(pixbuf, size*16, 3, 1, 1);
+	background = gdk_pixbuf_new_subpixbuf(pixbuf, size * 16, 3, 1, 1);
 	pixbufboard[0][0] = copy_subpixbuf(pixbuf, 0, 0, size, size);
 	channels = gdk_pixbuf_get_n_channels(pixbufboard[0][0]);
 	rowstride = gdk_pixbuf_get_rowstride(pixbufboard[0][0]);
 
 	pixbufboard[1][0] = copy_subpixbuf(pixbuf, size, 0, size, size);
-	for(i=2; i<=4; i++)
+	for (i = 2; i <= 4; i++)
 	{
 		guchar *pixels1, *pixels2;
 
 		pixbufboard[i][0] = gdk_pixbuf_new(colorspace, alpha, sample, size, size);
-		pixels1 = gdk_pixbuf_get_pixels(pixbufboard[i-1][0]);
+		pixels1 = gdk_pixbuf_get_pixels(pixbufboard[i - 1][0]);
 		pixels2 = gdk_pixbuf_get_pixels(pixbufboard[i][0]);
-		for(j=0; j<size; j++)
+		for (j = 0; j < size; j++)
 		{
-			for(k=0; k<size; k++)
+			for (k = 0; k < size; k++)
 			{
 				guchar *p1, *p2;
-				p1 = pixels1 + j*rowstride + k*channels;
-				p2 = pixels2 + k*rowstride + (size-1-j)*channels;
+				p1 = pixels1 + j * rowstride + k * channels;
+				p2 = pixels2 + k * rowstride + (size - 1 - j) * channels;
 				memcpy(p2, p1, channels);
 			}
 		}
 	}
-	pixbufboard[5][0] = copy_subpixbuf(pixbuf, size*2, 0, size, size);
-	for(i=6; i<=8; i++)
+	pixbufboard[5][0] = copy_subpixbuf(pixbuf, size * 2, 0, size, size);
+	for (i = 6; i <= 8; i++)
 	{
 		guchar *pixels1, *pixels2, *pixels3;
 
 		pixbufboard[i][0] = gdk_pixbuf_new(colorspace, alpha, sample, size, size);
-		pixels1 = gdk_pixbuf_get_pixels(pixbufboard[i-1][0]);
+		pixels1 = gdk_pixbuf_get_pixels(pixbufboard[i - 1][0]);
 		pixels2 = gdk_pixbuf_get_pixels(pixbufboard[i][0]);
 		pixels3 = gdk_pixbuf_get_pixels(background);
-		for(j=0; j<size; j++)
+		for (j = 0; j < size; j++)
 		{
-			for(k=0; k<size; k++)
+			for (k = 0; k < size; k++)
 			{
 				guchar *p1, *p2;
-				if(size%2 == 1 || i!=7)
+				if (size % 2 == 1 || i != 7)
 				{
-					p1 = pixels1 + j*rowstride + k*channels;
-					p2 = pixels2 + k*rowstride + (size-1-j)*channels;
+					p1 = pixels1 + j * rowstride + k * channels;
+					p2 = pixels2 + k * rowstride + (size - 1 - j) * channels;
 				}
 				else
 				{
-					p1 = pixels1 + ((j+1)%size)*rowstride + k*channels;
-					p2 = pixels2 + k*rowstride + (size-1-j)*channels;
+					p1 = pixels1 + ((j + 1) % size) * rowstride + k * channels;
+					p2 = pixels2 + k * rowstride + (size - 1 - j) * channels;
 				}
 				memcpy(p2, p1, channels);
 			}
 		}
 	}
-	for(i=0; i<=8; i++)
+	for (i = 0; i <= 8; i++)
 	{
-		for(j=1; j<=2; j++)
+		for (j = 1; j <= 2; j++)
 		{
 			GdkPixbuf *pbt;
 			guchar *pixels1, *pixels2, *pixels3, *pixels4;
-			pbt = copy_subpixbuf(pixbuf, size*(j+2), 0, size, size);
+			pbt = copy_subpixbuf(pixbuf, size * (j + 2), 0, size, size);
 			pixbufboard[i][j] = gdk_pixbuf_new(colorspace, alpha, sample, size, size);
 			pixels1 = gdk_pixbuf_get_pixels(pixbufboard[i][0]);
 			pixels2 = gdk_pixbuf_get_pixels(pbt);
 			pixels3 = gdk_pixbuf_get_pixels(background);
 			pixels4 = gdk_pixbuf_get_pixels(pixbufboard[i][j]);
-			for(k=0; k<size; k++)
+			for (k = 0; k < size; k++)
 			{
-				for(l=0; l<size; l++)
+				for (l = 0; l < size; l++)
 				{
 					guchar *p1, *p2, *p3, *p4;
-					p1 = pixels1 + k*rowstride + l*channels;
-					p2 = pixels2 + k*rowstride + l*channels;
+					p1 = pixels1 + k * rowstride + l * channels;
+					p2 = pixels2 + k * rowstride + l * channels;
 					p3 = pixels3;
-					p4 = pixels4 + k*rowstride + l*channels;
-					if(memcmp(p2, p3, channels) != 0)
+					p4 = pixels4 + k * rowstride + l * channels;
+					if (memcmp(p2, p3, channels) != 0)
 						memcpy(p4, p2, channels);
 					else
 						memcpy(p4, p1, channels);
@@ -5330,29 +5743,29 @@ void create_windowmain()
 			g_object_unref(pbt);
 			pbt = NULL;
 		}
-		for(j=3; j<=4; j++)
+		for (j = 3; j <= 4; j++)
 		{
 			GdkPixbuf *pbt1, *pbt2;
 			guchar *pixels1, *pixels2, *pixels3, *pixels4, *pixels5;
-			pbt1 = copy_subpixbuf(pixbuf, size*(j+4), 0, size, size);
-			pbt2 = copy_subpixbuf(pixbuf, size*6, 0, size, size);
+			pbt1 = copy_subpixbuf(pixbuf, size * (j + 4), 0, size, size);
+			pbt2 = copy_subpixbuf(pixbuf, size * 6, 0, size, size);
 			pixbufboard[i][j] = gdk_pixbuf_new(colorspace, alpha, sample, size, size);
 			pixels1 = gdk_pixbuf_get_pixels(pixbufboard[i][0]);
 			pixels2 = gdk_pixbuf_get_pixels(pbt1);
 			pixels3 = gdk_pixbuf_get_pixels(pbt2);
 			pixels4 = gdk_pixbuf_get_pixels(background);
 			pixels5 = gdk_pixbuf_get_pixels(pixbufboard[i][j]);
-			for(k=0; k<size; k++)
+			for (k = 0; k < size; k++)
 			{
-				for(l=0; l<size; l++)
+				for (l = 0; l < size; l++)
 				{
 					guchar *p1, *p2, *p3, *p4, *p5;
-					p1 = pixels1 + k*rowstride + l*channels;
-					p2 = pixels2 + k*rowstride + l*channels;
-					p3 = pixels3 + k*rowstride + l*channels;
+					p1 = pixels1 + k * rowstride + l * channels;
+					p2 = pixels2 + k * rowstride + l * channels;
+					p3 = pixels3 + k * rowstride + l * channels;
 					p4 = pixels4;
-					p5 = pixels5 + k*rowstride + l*channels;
-					if(memcmp(p3, p4, channels) != 0 || memcmp(p1, p4, channels) == 0)
+					p5 = pixels5 + k * rowstride + l * channels;
+					if (memcmp(p3, p4, channels) != 0 || memcmp(p1, p4, channels) == 0)
 						memcpy(p5, p2, channels);
 					else
 						memcpy(p5, p1, channels);
@@ -5363,26 +5776,26 @@ void create_windowmain()
 			g_object_unref(pbt2);
 			pbt2 = NULL;
 		}
-		for(j=5; j<=6; j++)
+		for (j = 5; j <= 6; j++)
 		{
 			GdkPixbuf *pbt;
 			guchar *pixels1, *pixels2, *pixels3, *pixels4;
-			pbt = copy_subpixbuf(pixbuf, size*5, 0, size, size);
+			pbt = copy_subpixbuf(pixbuf, size * 5, 0, size, size);
 			pixbufboard[i][j] = gdk_pixbuf_new(colorspace, alpha, sample, size, size);
-			pixels1 = gdk_pixbuf_get_pixels(pixbufboard[i][j-2]);
+			pixels1 = gdk_pixbuf_get_pixels(pixbufboard[i][j - 2]);
 			pixels2 = gdk_pixbuf_get_pixels(pbt);
 			pixels3 = gdk_pixbuf_get_pixels(background);
 			pixels4 = gdk_pixbuf_get_pixels(pixbufboard[i][j]);
-			for(k=0; k<size; k++)
+			for (k = 0; k < size; k++)
 			{
-				for(l=0; l<size; l++)
+				for (l = 0; l < size; l++)
 				{
 					guchar *p1, *p2, *p3, *p4;
-					p1 = pixels1 + k*rowstride + l*channels;
-					p2 = pixels2 + k*rowstride + l*channels;
+					p1 = pixels1 + k * rowstride + l * channels;
+					p2 = pixels2 + k * rowstride + l * channels;
 					p3 = pixels3;
-					p4 = pixels4 + k*rowstride + l*channels;
-					if(memcmp(p2, p3, channels) != 0)
+					p4 = pixels4 + k * rowstride + l * channels;
+					if (memcmp(p2, p3, channels) != 0)
 						memcpy(p4, p2, channels);
 					else
 						memcpy(p4, p1, channels);
@@ -5391,26 +5804,26 @@ void create_windowmain()
 			g_object_unref(pbt);
 			pbt = NULL;
 		}
-		for(j=7; j<=13; j++)
+		for (j = 7; j <= 13; j++)
 		{
 			GdkPixbuf *pbt;
 			guchar *pixels1, *pixels2, *pixels3, *pixels4;
-			pbt = copy_subpixbuf(pixbuf, size*(j+2), 0, size, size);
+			pbt = copy_subpixbuf(pixbuf, size * (j + 2), 0, size, size);
 			pixbufboard[i][j] = gdk_pixbuf_new(colorspace, alpha, sample, size, size);
 			pixels1 = gdk_pixbuf_get_pixels(pixbufboard[i][0]);
 			pixels2 = gdk_pixbuf_get_pixels(pbt);
 			pixels3 = gdk_pixbuf_get_pixels(background);
 			pixels4 = gdk_pixbuf_get_pixels(pixbufboard[i][j]);
-			for(k=0; k<size; k++)
+			for (k = 0; k < size; k++)
 			{
-				for(l=0; l<size; l++)
+				for (l = 0; l < size; l++)
 				{
 					guchar *p1, *p2, *p3, *p4;
-					p1 = pixels1 + k*rowstride + l*channels;
-					p2 = pixels2 + k*rowstride + l*channels;
+					p1 = pixels1 + k * rowstride + l * channels;
+					p2 = pixels2 + k * rowstride + l * channels;
 					p3 = pixels3;
-					p4 = pixels4 + k*rowstride + l*channels;
-					if(memcmp(p2, p3, channels) != 0)
+					p4 = pixels4 + k * rowstride + l * channels;
+					if (memcmp(p2, p3, channels) != 0)
 						memcpy(p4, p2, channels);
 					else
 						memcpy(p4, p1, channels);
@@ -5420,25 +5833,39 @@ void create_windowmain()
 			pbt = NULL;
 		}
 	}
-	
-	for(i=0; i<boardsizeh; i++)
+
+	for (i = 0; i < boardsizeh; i++)
 	{
-		for(j=0; j<boardsizew; j++)
+		for (j = 0; j < boardsizew; j++)
 		{
-			if(i==0 && j==0) imgtypeboard[i][j] = 1;
-			else if(i==0 && j==boardsizew-1) imgtypeboard[i][j] = 2;
-			else if(i==boardsizeh-1 && j==boardsizew-1) imgtypeboard[i][j] = 3;
-			else if(i==boardsizeh-1 && j==0) imgtypeboard[i][j] = 4;
-			else if(i==0) imgtypeboard[i][j] = 5;
-			else if(j==boardsizew-1) imgtypeboard[i][j] = 6;
-			else if(i==boardsizeh-1) imgtypeboard[i][j] = 7;
-			else if(j==0) imgtypeboard[i][j] = 8;
-			else if(i==boardsizeh/2 && j==boardsizew/2) imgtypeboard[i][j] = 9;
-			else if(i==boardsizeh/4 && j==boardsizew/4) imgtypeboard[i][j] = 9;
-			else if(i==boardsizeh/4 && j==boardsizew-1-boardsizew/4) imgtypeboard[i][j] = 9;
-			else if(i==boardsizeh-1-boardsizeh/4 && j==boardsizew/4) imgtypeboard[i][j] = 9;
-			else if(i==boardsizeh-1-boardsizeh/4 && j==boardsizew-1-boardsizew/4) imgtypeboard[i][j] = 9;
-			else imgtypeboard[i][j] = 0;
+			if (i == 0 && j == 0)
+				imgtypeboard[i][j] = 1;
+			else if (i == 0 && j == boardsizew - 1)
+				imgtypeboard[i][j] = 2;
+			else if (i == boardsizeh - 1 && j == boardsizew - 1)
+				imgtypeboard[i][j] = 3;
+			else if (i == boardsizeh - 1 && j == 0)
+				imgtypeboard[i][j] = 4;
+			else if (i == 0)
+				imgtypeboard[i][j] = 5;
+			else if (j == boardsizew - 1)
+				imgtypeboard[i][j] = 6;
+			else if (i == boardsizeh - 1)
+				imgtypeboard[i][j] = 7;
+			else if (j == 0)
+				imgtypeboard[i][j] = 8;
+			else if (i == boardsizeh / 2 && j == boardsizew / 2)
+				imgtypeboard[i][j] = 9;
+			else if (i == boardsizeh / 4 && j == boardsizew / 4)
+				imgtypeboard[i][j] = 9;
+			else if (i == boardsizeh / 4 && j == boardsizew - 1 - boardsizew / 4)
+				imgtypeboard[i][j] = 9;
+			else if (i == boardsizeh - 1 - boardsizeh / 4 && j == boardsizew / 4)
+				imgtypeboard[i][j] = 9;
+			else if (i == boardsizeh - 1 - boardsizeh / 4 && j == boardsizew - 1 - boardsizew / 4)
+				imgtypeboard[i][j] = 9;
+			else
+				imgtypeboard[i][j] = 0;
 		}
 	}
 	for (i = 0; i < boardsizeh; i++)
@@ -5446,24 +5873,24 @@ void create_windowmain()
 		char tlabel[3];
 		sprintf(tlabel, "%d", boardsizeh - i);
 		labelboard[0][i] = gtk_label_new(tlabel);
-		gtk_table_attach_defaults(GTK_TABLE(tableboard), labelboard[0][i], boardsizew, boardsizew + 1, i, i + 1);
+		gtk_grid_attach(GTK_GRID(tableboard), labelboard[0][i], boardsizew, i, 1, 1);
 	}
 	for (i = 0; i < boardsizew; i++)
 	{
 		char tlabel[3];
-		sprintf(tlabel, "%c", 'A'+i);
+		sprintf(tlabel, "%c", 'A' + i);
 		labelboard[1][i] = gtk_label_new(tlabel);
-		gtk_table_attach_defaults(GTK_TABLE(tableboard), labelboard[1][i], i, i+1, boardsizeh, boardsizeh+1);
+		gtk_grid_attach(GTK_GRID(tableboard), labelboard[1][i], i, boardsizeh, 1, 1);
 	}
-	for(i=0; i<boardsizeh; i++)
+	for (i = 0; i < boardsizeh; i++)
 	{
-		for(j=0; j<boardsizew; j++)
+		for (j = 0; j < boardsizew; j++)
 		{
-			if(imgtypeboard[i][j] <= 8)
+			if (imgtypeboard[i][j] <= 8)
 				imageboard[i][j] = gtk_image_new_from_pixbuf(pixbufboard[imgtypeboard[i][j]][0]);
 			else
 				imageboard[i][j] = gtk_image_new_from_pixbuf(pixbufboard[0][1]);
-			gtk_table_attach_defaults(GTK_TABLE(tableboard), imageboard[i][j], j, j+1, i, i+1);
+			gtk_grid_attach(GTK_GRID(tableboard), imageboard[i][j], j, i, 1, 1);
 		}
 	}
 
@@ -5480,37 +5907,35 @@ void create_windowmain()
 	menurule = gtk_menu_new();
 	menulanguage = gtk_menu_new();
 
-	menuitemgame = gtk_menu_item_new_with_label(language==0?"Game":_T(clanguage[59]));
-	menuitemplayers = gtk_menu_item_new_with_label(language==0?"Players":_T(clanguage[60]));
-	menuitemview = gtk_menu_item_new_with_label(language==0?"View":_T(clanguage[61]));
-	menuitemhelp = gtk_menu_item_new_with_label(language==0?"Help":_T(clanguage[62]));
-	menuitemnewgame = gtk_menu_item_new_with_label(language==0?"New":_T(clanguage[63]));
-	menuitemload = gtk_menu_item_new_with_label(language==0?"Load":_T(clanguage[64]));
-	menuitemsave = gtk_menu_item_new_with_label(language==0?"Save":_T(clanguage[65]));
-	menuitemrule = gtk_menu_item_new_with_label(language==0?"Rule":_T(clanguage[66]));
-	menuitemsize = gtk_menu_item_new_with_label(language==0?"Board Size":_T(clanguage[67]));
-	menuitemnumeration = gtk_check_menu_item_new_with_label(language==0?"Numeration":_T(clanguage[69]));
-	menuitemlog = gtk_check_menu_item_new_with_label(language==0?"Log":_T(clanguage[70]));
-	menuitemanalysis = gtk_check_menu_item_new_with_label(language==0?"Analysis":_T(clanguage[71]));
+	menuitemgame = gtk_menu_item_new_with_label(language == 0 ? "Game" : _T(clanguage[59]));
+	menuitemplayers = gtk_menu_item_new_with_label(language == 0 ? "Players" : _T(clanguage[60]));
+	menuitemview = gtk_menu_item_new_with_label(language == 0 ? "View" : _T(clanguage[61]));
+	menuitemhelp = gtk_menu_item_new_with_label(language == 0 ? "Help" : _T(clanguage[62]));
+	menuitemnewgame = gtk_menu_item_new_with_label(language == 0 ? "New" : _T(clanguage[63]));
+	menuitemload = gtk_menu_item_new_with_label(language == 0 ? "Load" : _T(clanguage[64]));
+	menuitemsave = gtk_menu_item_new_with_label(language == 0 ? "Save" : _T(clanguage[65]));
+	menuitemrule = gtk_menu_item_new_with_label(language == 0 ? "Rule" : _T(clanguage[66]));
+	menuitemsize = gtk_menu_item_new_with_label(language == 0 ? "Board Size" : _T(clanguage[67]));
+	menuitemnumeration = gtk_check_menu_item_new_with_label(language == 0 ? "Numeration" : _T(clanguage[69]));
+	menuitemlog = gtk_check_menu_item_new_with_label(language == 0 ? "Log" : _T(clanguage[70]));
+	menuitemanalysis = gtk_check_menu_item_new_with_label(language == 0 ? "Analysis" : _T(clanguage[71]));
 	menuitemclock = gtk_check_menu_item_new_with_label(language == 0 ? "Clock" : _T(clanguage[94]));
 	menuitemforbidden = gtk_check_menu_item_new_with_label(language == 0 ? "Forbidden Move" : _T(clanguage[97]));
 	menuitemdatabase = gtk_check_menu_item_new_with_label(language == 0 ? "Use Database" : _T(clanguage[103]));
 	menuitemdbreadonly = gtk_check_menu_item_new_with_label(language == 0 ? "Database Readonly" : _T(clanguage[112]));
 	menuitemboardtext = gtk_check_menu_item_new_with_label(language == 0 ? "Board Text" : _T(clanguage[113]));
-	menuitemlanguage = gtk_menu_item_new_with_label(language==0?"Language":_T(clanguage[72]));
-	menuitemquit = gtk_menu_item_new_with_label(language==0?"Quit":_T(clanguage[73]));
-	menuitemabout = gtk_menu_item_new_with_label(language==0?"About":_T(clanguage[74]));
-	menuitemsettings = gtk_menu_item_new_with_label(language==0?"Settings":_T(clanguage[75]));
-	
-	menuitemrule1 = gtk_radio_menu_item_new_with_label(NULL, language==0?"Freestyle Gomoku":_T(clanguage[76]));
+	menuitemlanguage = gtk_menu_item_new_with_label(language == 0 ? "Language" : _T(clanguage[72]));
+	menuitemquit = gtk_menu_item_new_with_label(language == 0 ? "Quit" : _T(clanguage[73]));
+	menuitemabout = gtk_menu_item_new_with_label(language == 0 ? "About" : _T(clanguage[74]));
+	menuitemsettings = gtk_menu_item_new_with_label(language == 0 ? "Settings" : _T(clanguage[75]));
+
+	menuitemrule1 = gtk_radio_menu_item_new_with_label(NULL, language == 0 ? "Freestyle Gomoku" : _T(clanguage[76]));
 	menuitemrule2 = gtk_radio_menu_item_new_with_label(gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(menuitemrule1)), language == 0 ? "Standard Gomoku" : _T(clanguage[77]));
 	menuitemrule3 = gtk_radio_menu_item_new_with_label(gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(menuitemrule1)), language == 0 ? "Free Renju" : _T(clanguage[78]));
-	//menuitemrule4 = gtk_radio_menu_item_new_with_label(gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(menuitemrule1)), language == 0 ? "RIF Opening Rule" : _T(clanguage[79]));
 	menuitemrule5 = gtk_radio_menu_item_new_with_label(gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(menuitemrule1)), language == 0 ? "Swap After First Move" : _T(clanguage[80]));
 	menuitemrule6 = gtk_radio_menu_item_new_with_label(gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(menuitemrule1)), language == 0 ? "Swap2" : _T(clanguage[100]));
-	//menuitemrule7 = gtk_radio_menu_item_new_with_label(gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(menuitemrule1)), language == 0 ? "Yamaguchi Opening Rule" : _T(clanguage[101])); //TODO
 	menuitemrule8 = gtk_radio_menu_item_new_with_label(gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(menuitemrule1)), language == 0 ? "Soosorv-8 Opening Rule" : _T(clanguage[102]));
-	
+
 	menuitemenglish = gtk_radio_menu_item_new_with_label(NULL, "English");
 	for (i = 1; i < 16; i++)
 	{
@@ -5528,12 +5953,15 @@ void create_windowmain()
 					s[l - 1] = 0;
 					l--;
 				}
-				if (l == 0) break;
-				if (s[0] == ';') break;
+				if (l == 0)
+					break;
+				if (s[0] == ';')
+					break;
 				sscanf(s, "%d", &p);
 				if (p == 84)
 				{
-					for (j = 0; j < l && s[j] != '='; j++);
+					for (j = 0; j < l && s[j] != '='; j++)
+						;
 					strcpy(lnglis[i], s + j + 1);
 					break;
 				}
@@ -5542,31 +5970,31 @@ void create_windowmain()
 			menuitemcustomlng[i] = gtk_radio_menu_item_new_with_label(gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(menuitemenglish)), _T(lnglis[i]));
 		}
 	}
-	
-	switch(inforule)
+
+	switch (inforule)
 	{
-		case 0:
-			if(specialrule == 0)
-				gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemrule1), TRUE);
-			else if(specialrule == 2)
-				gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemrule5), TRUE);
-			break;
-		case 1:
-			if(specialrule == 0)
-				gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemrule2), TRUE);
-			else if(specialrule == 4)
-				gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemrule6), TRUE);
-			break;
-		case 2:
-			if(specialrule == 0)
-				gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemrule3), TRUE);
-			else if(specialrule == 3)
-				gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemrule8), TRUE);
-			break;
+	case 0:
+		if (specialrule == 0)
+			gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemrule1), TRUE);
+		else if (specialrule == 2)
+			gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemrule5), TRUE);
+		break;
+	case 1:
+		if (specialrule == 0)
+			gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemrule2), TRUE);
+		else if (specialrule == 4)
+			gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemrule6), TRUE);
+		break;
+	case 2:
+		if (specialrule == 0)
+			gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemrule3), TRUE);
+		else if (specialrule == 3)
+			gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemrule8), TRUE);
+		break;
 	}
 	set_rule();
 
-	if(language == 0)
+	if (language == 0)
 		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemenglish), TRUE);
 	else
 		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemcustomlng[language]), TRUE);
@@ -5597,28 +6025,28 @@ void create_windowmain()
 	}
 	if (usedatabase)
 	{
-		usedatabase = 0; //hack
+		usedatabase = 0;
 		use_database(NULL, NULL);
 		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemdatabase), TRUE);
 	}
 	if (databasereadonly)
 	{
-		databasereadonly = 0; //hack
+		databasereadonly = 0;
 		set_database_readonly(NULL, NULL);
 		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemdbreadonly), TRUE);
 	}
-	menuitemcomputerplaysblack = gtk_check_menu_item_new_with_label(language==0?"Computer Plays Black":_T(clanguage[81]));
-	menuitemcomputerplayswhite = gtk_check_menu_item_new_with_label(language==0?"Computer Plays White":_T(clanguage[82]));
-	menuitemchecktimeout = gtk_check_menu_item_new_with_label(language == 0 ? "Check Timeout" : _T(clanguage[99])); 
-	if(computerside&1)
+	menuitemcomputerplaysblack = gtk_check_menu_item_new_with_label(language == 0 ? "Computer Plays Black" : _T(clanguage[81]));
+	menuitemcomputerplayswhite = gtk_check_menu_item_new_with_label(language == 0 ? "Computer Plays White" : _T(clanguage[82]));
+	menuitemchecktimeout = gtk_check_menu_item_new_with_label(language == 0 ? "Check Timeout" : _T(clanguage[99]));
+	if (computerside & 1)
 		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemcomputerplaysblack), TRUE);
 	else
 		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemcomputerplaysblack), FALSE);
-	if(computerside>>1)
+	if (computerside >> 1)
 		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemcomputerplayswhite), TRUE);
 	else
 		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemcomputerplayswhite), FALSE);
-	if(checktimeout)
+	if (checktimeout)
 		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemchecktimeout), TRUE);
 	else
 		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemchecktimeout), FALSE);
@@ -5642,7 +6070,7 @@ void create_windowmain()
 	gtk_menu_shell_append(GTK_MENU_SHELL(menulanguage), menuitemenglish);
 	for (i = 1; i < 16; i++)
 	{
-		if(menuitemcustomlng[i] != NULL)
+		if (menuitemcustomlng[i] != NULL)
 			gtk_menu_shell_append(GTK_MENU_SHELL(menulanguage), menuitemcustomlng[i]);
 	}
 
@@ -5699,59 +6127,110 @@ void create_windowmain()
 	g_signal_connect(G_OBJECT(menuitemenglish), "activate", G_CALLBACK(change_language), (gpointer)0);
 	for (i = 1; i < 16; i++)
 	{
-		if(menuitemcustomlng[i] != NULL)
-			g_signal_connect(G_OBJECT(menuitemcustomlng[i]), "activate", G_CALLBACK(change_language), (gpointer)i);
+		if (menuitemcustomlng[i] != NULL)
+			g_signal_connect(G_OBJECT(menuitemcustomlng[i]), "activate", G_CALLBACK(change_language), GINT_TO_POINTER(i));
 	}
 
 	toolbar = gtk_toolbar_new();
+	gtk_toolbar_set_show_arrow(GTK_TOOLBAR(toolbar), TRUE);
 	if (showtoolbarboth == 0)
 		gtk_toolbar_set_style(GTK_TOOLBAR(toolbar), GTK_TOOLBAR_ICONS);
 	else if (showtoolbarboth == 1)
 		gtk_toolbar_set_style(GTK_TOOLBAR(toolbar), GTK_TOOLBAR_BOTH);
 	else
 		gtk_toolbar_set_style(GTK_TOOLBAR(toolbar), GTK_TOOLBAR_BOTH_HORIZ);
-	if (toolbarpos)
-		gtk_toolbar_set_orientation((GtkToolbar*)toolbar, GTK_ORIENTATION_HORIZONTAL);
-	else
-		gtk_toolbar_set_orientation((GtkToolbar*)toolbar, GTK_ORIENTATION_VERTICAL);
 
-	for (i = 0; i < toolbarnum; i++)
+	for (i = 0; i < toolbarnum; ++i)
 	{
-		tools[i] = gtk_tool_button_new_from_stock(toolbaricon[i]);
-		gtk_tool_button_set_label(GTK_TOOL_BUTTON(tools[i]), _T(clanguage[toolbarlng[i]]));
-		gtk_toolbar_insert(GTK_TOOLBAR(toolbar), tools[i], -1);
-		g_signal_connect(G_OBJECT(tools[i]), "clicked", G_CALLBACK(toolbar_function), (gpointer)i);
+		GtkToolItem *tool_btn = gtk_tool_button_new(NULL, NULL);
+
+		// 检查是否是文件路径还是图标名称
+		if (strstr(toolbaricon[i], "/") != NULL || strstr(toolbaricon[i], "\\") != NULL || strstr(toolbaricon[i], ".ico") != NULL)
+		{
+			// 这是一个文件路径，使用文件图标
+			GdkPixbuf *original_pixbuf = gdk_pixbuf_new_from_file(toolbaricon[i], NULL);
+			if (original_pixbuf)
+			{
+				// 获取toolbar图标的标准大小
+				gint icon_size;
+				gtk_icon_size_lookup(GTK_ICON_SIZE_LARGE_TOOLBAR, &icon_size, NULL);
+
+				// 缩放自定义图标到标准大小
+				GdkPixbuf *scaled_pixbuf = gdk_pixbuf_scale_simple(original_pixbuf, icon_size, icon_size, GDK_INTERP_BILINEAR);
+				GtkWidget *image = gtk_image_new_from_pixbuf(scaled_pixbuf);
+				gtk_tool_button_set_icon_widget(GTK_TOOL_BUTTON(tool_btn), image);
+				g_object_unref(original_pixbuf);
+				g_object_unref(scaled_pixbuf);
+			}
+			else
+			{
+				// 如果文件加载失败，使用默认图标
+				gtk_tool_button_set_icon_name(GTK_TOOL_BUTTON(tool_btn), "image-missing");
+			}
+		}
+		else
+		{
+			// 这是一个图标名称，使用图标主题
+			gtk_tool_button_set_icon_name(GTK_TOOL_BUTTON(tool_btn), toolbaricon[i]);
+		}
+
+		gtk_tool_button_set_label(GTK_TOOL_BUTTON(tool_btn), _T(clanguage[toolbarlng[i]]));
+		g_signal_connect(G_OBJECT(tool_btn), "clicked", G_CALLBACK(toolbar_function), GINT_TO_POINTER(i));
+
+		// Connect signal to create menu proxy
+		g_signal_connect(G_OBJECT(tool_btn), "create-menu-proxy", G_CALLBACK(create_menu_proxy), GINT_TO_POINTER(i));
+
+		gtk_toolbar_insert(GTK_TOOLBAR(toolbar), tool_btn, -1);
 	}
 
 	textdbcomment = gtk_text_view_new();
 	buffertextdbcomment = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textdbcomment));
 	scrolledtextdbcomment = gtk_scrolled_window_new(NULL, NULL);
 	gtk_container_add(GTK_CONTAINER(scrolledtextdbcomment), textdbcomment);
-	gtk_widget_set_size_request(scrolledtextdbcomment, (int)(hdpiscale*400), (int)(hdpiscale*100));
+	gtk_widget_set_size_request(scrolledtextdbcomment, (int)(hdpiscale * 400), (int)(hdpiscale * 100));
 	PangoFontDescription *dbcommentfontdesc = pango_font_description_from_string(fontname[2]);
-    gtk_widget_modify_font(textdbcomment, dbcommentfontdesc);
-    pango_font_description_free(dbcommentfontdesc);
+	// 使用CSS provider设置字体（GTK3推荐方式）
+	GtkCssProvider *css_provider = gtk_css_provider_new();
+	const char *font_family = pango_font_description_get_family(dbcommentfontdesc);
+	int font_size = pango_font_description_get_size(dbcommentfontdesc) / PANGO_SCALE;
+	gchar *css_data = g_strdup_printf("textview { font-family: '%s'; font-size: %dpt; }",
+									  font_family ? font_family : "Sans", font_size > 0 ? font_size : 10);
+	gtk_css_provider_load_from_data(css_provider, css_data, -1, NULL);
+	gtk_style_context_add_provider(gtk_widget_get_style_context(textdbcomment),
+								   GTK_STYLE_PROVIDER(css_provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+	g_object_unref(css_provider);
+	g_free(css_data);
+	pango_font_description_free(dbcommentfontdesc);
 	g_signal_connect(buffertextdbcomment, "end-user-action", G_CALLBACK(dbcomment_changed), NULL);
 	if (databasereadonly)
 		gtk_text_view_set_editable(GTK_TEXT_VIEW(textdbcomment), 0);
 
 	textlog = gtk_text_view_new();
 	PangoFontDescription *fontDesc = pango_font_description_from_string(fontname[1]);
-    gtk_widget_modify_font(textlog, fontDesc);
+	// 使用CSS provider设置字体（GTK3推荐方式）
+	GtkCssProvider *css_provider2 = gtk_css_provider_new();
+	const char *font_family2 = pango_font_description_get_family(fontDesc);
+	int font_size2 = pango_font_description_get_size(fontDesc) / PANGO_SCALE;
+	gchar *css_data2 = g_strdup_printf("textview { font-family: '%s'; font-size: %dpt; }",
+									   font_family2 ? font_family2 : "Sans", font_size2 > 0 ? font_size2 : 10);
+	gtk_css_provider_load_from_data(css_provider2, css_data2, -1, NULL);
+	gtk_style_context_add_provider(gtk_widget_get_style_context(textlog),
+								   GTK_STYLE_PROVIDER(css_provider2), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+	g_object_unref(css_provider2);
+	g_free(css_data2);
 	pango_font_description_free(fontDesc);
 	gtk_text_view_set_editable(textlog, 0);
 
 	buffertextlog = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textlog));
 	scrolledtextlog = gtk_scrolled_window_new(NULL, NULL);
 	gtk_container_add(GTK_CONTAINER(scrolledtextlog), textlog);
-	gtk_widget_set_size_request(scrolledtextlog, (int)(hdpiscale*400), max(0, size*boardsizeh - (int)(hdpiscale * 200) - (toolbarpos == 1 ? 50 : 0)));
+	gtk_widget_set_size_request(scrolledtextlog, (int)(hdpiscale * 400), max(0, size * boardsizeh - (int)(hdpiscale * 200) - (toolbarpos == 1 ? 50 : 0)));
 
 	textcommand = gtk_text_view_new();
 	buffertextcommand = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textcommand));
 	scrolledtextcommand = gtk_scrolled_window_new(NULL, NULL);
-	//gtk_scrolled_window_add_with_viewport(GTK_SCROLLED_WINDOW(scrolledtextcommand), textcommand);
 	gtk_container_add(GTK_CONTAINER(scrolledtextcommand), textcommand);
-	gtk_widget_set_size_request(scrolledtextcommand, (int)(hdpiscale*400), (int)(hdpiscale*50));
+	gtk_widget_set_size_request(scrolledtextcommand, (int)(hdpiscale * 400), (int)(hdpiscale * 50));
 	g_signal_connect(textcommand, "key-release-event", G_CALLBACK(key_command), NULL);
 
 	textpos = gtk_text_view_new();
@@ -5759,44 +6238,66 @@ void create_windowmain()
 	scrolledtextpos = gtk_scrolled_window_new(NULL, NULL);
 	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolledtextpos), GTK_POLICY_NEVER, GTK_POLICY_ALWAYS);
 	gtk_container_add(GTK_CONTAINER(scrolledtextpos), textpos);
-	gtk_widget_set_size_request(scrolledtextpos, (int)(hdpiscale*400), (int)(hdpiscale*50));
+	gtk_widget_set_size_request(scrolledtextpos, (int)(hdpiscale * 400), (int)(hdpiscale * 50));
 	gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(textpos), GTK_WRAP_CHAR);
 	PangoFontDescription *posfontdesc = pango_font_description_from_string(fontname[3]);
-    gtk_widget_modify_font(textpos, posfontdesc);
-    pango_font_description_free(posfontdesc);
+	// 使用CSS provider设置字体（GTK3推荐方式）
+	GtkCssProvider *css_provider3 = gtk_css_provider_new();
+	const char *font_family3 = pango_font_description_get_family(posfontdesc);
+	int font_size3 = pango_font_description_get_size(posfontdesc) / PANGO_SCALE;
+	gchar *css_data3 = g_strdup_printf("textview { font-family: '%s'; font-size: %dpt; }",
+									   font_family3 ? font_family3 : "Sans", font_size3 > 0 ? font_size3 : 10);
+	gtk_css_provider_load_from_data(css_provider3, css_data3, -1, NULL);
+	gtk_style_context_add_provider(gtk_widget_get_style_context(textpos),
+								   GTK_STYLE_PROVIDER(css_provider3), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+	g_object_unref(css_provider3);
+	g_free(css_data3);
+	pango_font_description_free(posfontdesc);
 	g_signal_connect(buffertextpos, "end-user-action", G_CALLBACK(textpos_changed), NULL);
 
 	btncopypos = gtk_button_new();
 	btnsetpos = gtk_button_new();
 	gtk_button_set_image(GTK_BUTTON(btncopypos), gtk_image_new_from_icon_name("edit-copy", GTK_ICON_SIZE_BUTTON));
 	gtk_button_set_image(GTK_BUTTON(btnsetpos), gtk_image_new_from_icon_name("edit-paste", GTK_ICON_SIZE_BUTTON));
-	g_signal_connect(btncopypos, "clicked", G_CALLBACK(textpos_button_clicked), 1);
-	g_signal_connect(btnsetpos, "clicked", G_CALLBACK(textpos_button_clicked), 2);
+	g_signal_connect(btncopypos, "clicked", G_CALLBACK(textpos_button_clicked), GINT_TO_POINTER(1));
+	g_signal_connect(btnsetpos, "clicked", G_CALLBACK(textpos_button_clicked), GINT_TO_POINTER(2));
 
-	posbar = gtk_hbox_new(FALSE, 0);
+	posbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
 	gtk_box_pack_start(GTK_BOX(posbar), scrolledtextpos, TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(posbar), btncopypos, FALSE, FALSE, 2);
 	gtk_box_pack_start(GTK_BOX(posbar), btnsetpos, FALSE, FALSE, 2);
 
-	vbox[0] = gtk_vbox_new(FALSE, 0);
+	vbox[0] = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
 	if (toolbarpos == 1)
+	{
+		g_object_set(toolbar, "orientation", GTK_ORIENTATION_HORIZONTAL, NULL);
+		int max_toolbar_width = (int)(hdpiscale * 400);
+		gtk_widget_set_size_request(toolbar, max_toolbar_width, -1);
 		gtk_box_pack_start(GTK_BOX(vbox[0]), toolbar, FALSE, FALSE, 3);
+	}
 	gtk_box_pack_start(GTK_BOX(vbox[0]), posbar, FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(vbox[0]), scrolledtextdbcomment, FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(vbox[0]), scrolledtextlog, TRUE, TRUE, 3);
 	gtk_box_pack_start(GTK_BOX(vbox[0]), scrolledtextcommand, FALSE, FALSE, 3);
 
-	hbox[0] = gtk_hbox_new(FALSE, 0);
+	hbox[0] = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
 	if (toolbarpos == 0)
-		gtk_box_pack_start(GTK_BOX(hbox[0]), toolbar, FALSE, FALSE, 3);
-	gtk_box_pack_start(GTK_BOX(hbox[0]), tableboard, FALSE, FALSE, 3);
+	{
+		g_object_set(toolbar, "orientation", GTK_ORIENTATION_VERTICAL, NULL);
+		GtkWidget *toolbar_scrolled = gtk_scrolled_window_new(NULL, NULL);
+		gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(toolbar_scrolled),
+									   GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+		int max_toolbar_height = max(200, size * boardsizeh - 150);
+		gtk_widget_set_size_request(toolbar_scrolled, -1, max_toolbar_height);
+		gtk_container_add(GTK_CONTAINER(toolbar_scrolled), toolbar);
+		gtk_box_pack_start(GTK_BOX(hbox[0]), toolbar_scrolled, FALSE, FALSE, 3);
+	}
+	gtk_box_pack_start(GTK_BOX(hbox[0]), eventbox_board, FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(hbox[0]), vbox[0], FALSE, FALSE, 3);
 
-	vboxwindowmain = gtk_vbox_new(FALSE, 0);
+	vboxwindowmain = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
 	gtk_box_pack_start(GTK_BOX(vboxwindowmain), menubar, FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(vboxwindowmain), hbox[0], FALSE, FALSE, 3);
-	//gtk_box_pack_start(GTK_BOX(vboxwindowmain), toolbar, FALSE, FALSE, 3);
-	//gtk_box_pack_start(GTK_BOX(vboxwindowmain), tableboard, FALSE, FALSE, 3);
 
 	gtk_container_add(GTK_CONTAINER(windowmain), vboxwindowmain);
 
@@ -5806,8 +6307,6 @@ void create_windowmain()
 	gtk_widget_show_all(windowmain);
 
 	gtk_window_set_position(windowmain, GTK_WIN_POS_CENTER_ALWAYS);
-	
-	//gtk_widget_hide(toolbar_acc);
 
 	if (!showlog)
 	{
@@ -5831,7 +6330,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 	int i;
 	char command[80];
 
-	if(cond & G_IO_HUP)
+	if (cond & G_IO_HUP)
 	{
 		g_io_channel_unref(channel);
 		return FALSE;
@@ -5839,7 +6338,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 	do
 	{
 		g_io_channel_read_line(channel, &rawstring, &size, NULL, NULL);
-		
+
 		if (commandmodel == 1)
 		{
 			print_log(rawstring);
@@ -5850,19 +6349,19 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 		if (debuglog != NULL)
 		{
 			fprintf(debuglog, "RECEIVE_COMMAND [%s,%s,%s,%s]: %s\n",
-				gtk_label_get_text(clocklabel[0]),
-				gtk_label_get_text(clocklabel[1]),
-				gtk_label_get_text(clocklabel[2]),
-				gtk_label_get_text(clocklabel[3]),
-				rawstring);
+					gtk_label_get_text(clocklabel[0]),
+					gtk_label_get_text(clocklabel[1]),
+					gtk_label_get_text(clocklabel[2]),
+					gtk_label_get_text(clocklabel[3]),
+					rawstring);
 			fflush(debuglog);
 		}
 
 		string = g_strndup(rawstring, size);
-		for (i=0; i<(int)size; i++)
+		for (i = 0; i < (int)size; i++)
 		{
-			if (string[i] >= 'a' && string[i] <= 'z') 
-				string[i] = string[i] - 'a' + 'A';  // convert to upper case
+			if (string[i] >= 'a' && string[i] <= 'z')
+				string[i] = string[i] - 'a' + 'A'; // convert to upper case
 		}
 
 		if (strncmp(string, "OK", 2) == 0)
@@ -5901,15 +6400,16 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 			isneedrestart = 0;
 			sprintf(command, "INFO time_left %lld\n", timeoutmatch - timercomputermatch + timercomputerincrement);
 			send_command(command);
-			if (hashautoclear) send_command("yxhashclear\n");
+			if (hashautoclear)
+				send_command("yxhashclear\n");
 			sprintf(command, "start %d %d\n", boardsizew, boardsizeh);
 			send_command(command);
 			sprintf(command, "board\n");
 			send_command(command);
-			for (i = 0; i<piecenum; i++)
+			for (i = 0; i < piecenum; i++)
 			{
 				sprintf(command, "%d,%d,%d\n", movepath[i] / boardsizew,
-					movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+						movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 				send_command(command);
 			}
 			sprintf(command, "done\n");
@@ -5967,15 +6467,16 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 			isneedrestart = 0;
 			sprintf(command, "INFO time_left %lld\n", timeoutmatch - timercomputermatch + timercomputerincrement);
 			send_command(command);
-			if (hashautoclear) send_command("yxhashclear\n");
+			if (hashautoclear)
+				send_command("yxhashclear\n");
 			sprintf(command, "start %d %d\n", boardsizew, boardsizeh);
 			send_command(command);
 			sprintf(command, "board\n");
 			send_command(command);
-			for (i = 0; i<piecenum; i++)
+			for (i = 0; i < piecenum; i++)
 			{
 				sprintf(command, "%d,%d,%d\n", movepath[i] / boardsizew,
-					movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+						movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 				send_command(command);
 			}
 			sprintf(command, "done\n");
@@ -6020,7 +6521,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 				for (i = 0; i < piecenum; i++)
 				{
 					sprintf(command, "%d,%d\n", movepath[i] / boardsizew,
-						movepath[i] % boardsizew);
+							movepath[i] % boardsizew);
 					send_command(command);
 				}
 				send_command("done\n");
@@ -6053,7 +6554,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 				for (i = 0; i < piecenum; i++)
 				{
 					sprintf(command, "%d,%d\n", movepath[i] / boardsizew,
-						movepath[i] % boardsizew);
+							movepath[i] % boardsizew);
 					send_command(command);
 				}
 				send_command("done\n");
@@ -6077,15 +6578,16 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 				isneedrestart = 0;
 				sprintf(command, "INFO time_left %lld\n", timeoutmatch - timercomputermatch + timercomputerincrement);
 				send_command(command);
-				if (hashautoclear) send_command("yxhashclear\n");
+				if (hashautoclear)
+					send_command("yxhashclear\n");
 				sprintf(command, "start %d %d\n", boardsizew, boardsizeh);
 				send_command(command);
 				sprintf(command, "board\n");
 				send_command(command);
-				for (i = 0; i<piecenum; i++)
+				for (i = 0; i < piecenum; i++)
 				{
 					sprintf(command, "%d,%d,%d\n", movepath[i] / boardsizew,
-						movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
+							movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 					send_command(command);
 				}
 				sprintf(command, "done\n");
@@ -6130,14 +6632,16 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 				int tag, val, depth, bound;
 				char displayLabel[80];
 				sprintf(displayLabel, "");
-				sscanf(p+4, "%d %d %d %d %79s", &tag, &val, &depth, &bound, displayLabel);
+				sscanf(p + 4, "%d %d %d %d %79s", &tag, &val, &depth, &bound, displayLabel);
 				if (strlen(displayLabel) > 0)
 					printf_log("%s: ", displayLabel);
 				if (tag <= 0)
 					printf_log("tag=(null)  ");
 				else
 					printf_log("tag=%c  ", tag);
-				const char* boundtext = bound == 3 ? "exact" : bound == 2 ? "lower" : bound == 1 ? "upper" : "none";
+				const char *boundtext = bound == 3 ? "exact" : bound == 2 ? "lower"
+														   : bound == 1	  ? "upper"
+																		  : "none";
 				printf_log("val=%d  depth=%d  bound=%s\n", val, depth, boundtext);
 			}
 			else if (*p == 'T') //"TEXT"
@@ -6147,11 +6651,14 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 				gtk_text_buffer_delete(buffertextdbcomment, &start, &end);
 
 				char *text_utf8 = _T(rawstring + 16 + 1 + 5), *t = text_utf8;
-				if (*t == '"') {
+				if (*t == '"')
+				{
 					++t;
 					int len = 0;
-					while (t[len] != '"') {
-						if (t[len] == '\0') {
+					while (t[len] != '"')
+					{
+						if (t[len] == '\0')
+						{
 							gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffertextdbcomment), &end, t, len);
 							g_free(rawstring);
 							g_free(text_utf8);
@@ -6160,11 +6667,12 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 							len = 0;
 							continue;
 						}
-						else if (t[len] == '\\') {
+						else if (t[len] == '\\')
+						{
 							gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffertextdbcomment), &end, t, len);
-							if (t[len+1] == '"')
+							if (t[len + 1] == '"')
 								gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffertextdbcomment), &end, "\"", 1);
-							else if (t[len+1] == '\\')
+							else if (t[len + 1] == '\\')
 								gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffertextdbcomment), &end, "\\", 1);
 							t += len + 2;
 							len = 0;
@@ -6187,7 +6695,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 					if (savingdialog == NULL)
 					{
 						savingdialog = gtk_message_dialog_new(GTK_WINDOW(windowmain), GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_INFO,
-							GTK_BUTTONS_NONE, "%s %s ......", language == 0 ? "Saving database to" : _T(clanguage[115]), p + 6);
+															  GTK_BUTTONS_NONE, "%s %s ......", language == 0 ? "Saving database to" : _T(clanguage[115]), p + 6);
 						gtk_window_set_deletable(GTK_WINDOW(savingdialog), FALSE);
 						gtk_widget_show(GTK_DIALOG(savingdialog));
 					}
@@ -6216,7 +6724,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 		{
 			clear_board_tag();
 			char *p = string + 16 + 1;
-			if(*p == 'B') //"BEST"
+			if (*p == 'B') //"BEST"
 			{
 				int oldX = boardbestX, oldY = boardbestY;
 				p += 5;
@@ -6225,57 +6733,60 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 					refresh_board_area(oldX, oldY, oldX + 1, oldY + 1);
 				refresh_board_area(boardbestX, boardbestY, boardbestX + 1, boardbestY + 1);
 			}
-			else if(*p == 'V') //"VAL"
+			else if (*p == 'V') //"VAL"
 			{
 				p += 4;
 				sscanf(p, "%d", &bestval);
 			}
-			else if(*p == 'L') //"LOSE"
+			else if (*p == 'L') //"LOSE"
 			{
 				p += 5;
 				sscanf(p, "%d,%d", &y, &x);
 				boardlose[y][x] = 1;
 				refresh_board_area(x, y, x + 1, y + 1);
 			}
-			else if(*p == 'P' && *(p+1) == 'V') //"PV"
+			else if (*p == 'P' && *(p + 1) == 'V') //"PV"
 			{
 				p += 3;
 				strcpy(bestline, p);
 			}
-			else if(*p == 'P' && *(p+1) == 'O') //"POS"
+			else if (*p == 'P' && *(p + 1) == 'O') //"POS"
 			{
 				p += 4;
 				sscanf(p, "%d,%d", &y, &x);
 				boardpos[y][x] = 2;
 				refresh_board_area(x, y, x + 1, y + 1);
 			}
-			else if(*p == 'R') //"REFRESH"
+			else if (*p == 'R') //"REFRESH"
 			{
 				for (int y = 0; y < boardsizeh; y++)
-					for (int x = 0; x < boardsizew; x++) {
-						if (boardpos[y][x]) {
+					for (int x = 0; x < boardsizew; x++)
+					{
+						if (boardpos[y][x])
+						{
 							boardpos[y][x] = 0;
 							refresh_board_area(x, y, x + 1, y + 1);
 						}
 					}
 			}
-			else if(*p == 'D') //"DONE"
+			else if (*p == 'D') //"DONE"
 			{
 				p += 5;
 				sscanf(p, "%d,%d", &y, &x);
-				if(boardpos[y][x] == 2) boardpos[y][x] = 1;
+				if (boardpos[y][x] == 2)
+					boardpos[y][x] = 1;
 				refresh_board_area(x, y, x + 1, y + 1);
 			}
 		}
 		else if (strncmp(string, "MESSAGE INFO", 12) == 0)
 		{
 			char *p = string + 12 + 1;
-			if (strncmp(p, "MAX_THREAD_NUM", 14) == 0) //MAX_THREAD_NUM
+			if (strncmp(p, "MAX_THREAD_NUM", 14) == 0) // MAX_THREAD_NUM
 			{
 				p += 15;
 				sscanf(p, "%d", &maxthreadnum);
 			}
-			else if (strncmp(p, "MAX_HASH_SIZE", 13) == 0) //MAX_HASH_SIZE
+			else if (strncmp(p, "MAX_HASH_SIZE", 13) == 0) // MAX_HASH_SIZE
 			{
 				p += 14;
 				sscanf(p, "%d", &maxhashsize);
@@ -6304,22 +6815,24 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 		else if (strncmp(string, "FORBID", 6) == 0)
 		{
 			memset(forbid, 0, sizeof(forbid));
-			for(i=7; string[i] != '.'; i+=4)
+			for (i = 7; string[i] != '.'; i += 4)
 			{
-				y = (string[i] - '0')*10 + string[i+1] - '0';
-				x = (string[i+2] - '0')*10 + string[i+3] - '0';
+				y = (string[i] - '0') * 10 + string[i + 1] - '0';
+				x = (string[i + 2] - '0') * 10 + string[i + 3] - '0';
 				forbid[y][x] = 1;
 			}
-			//printf_log("%s", string);
+			// printf_log("%s", string);
 			refresh_board();
 		}
-		else {
+		else
+		{
 			y = x = y2 = x2 = -999;
 			sscanf(string, "%d,%d %d,%d", &y, &x, &y2, &x2);
-			if (y != -999 && x != -999) {
+			if (y != -999 && x != -999)
+			{
 				if (isneedomit > 0)
 				{
-					isneedomit --;
+					isneedomit--;
 				}
 				else
 				{
@@ -6349,27 +6862,28 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 					{
 						isgameover = 1;
 					}
-					if(inforule == 2 && (computerside&1)==0)
+					if (inforule == 2 && (computerside & 1) == 0)
 					{
 						sprintf(command, "yxshowforbid\n");
 						send_command(command);
 					}
-					
-					if(!isgameover && (((computerside&1)&&piecenum%2==0) || ((computerside&2)&&piecenum%2==1)))
+
+					if (!isgameover && (((computerside & 1) && piecenum % 2 == 0) || ((computerside & 2) && piecenum % 2 == 1)))
 					{
 						isthinking = 1;
 						clock_timer_change_status(1);
 						sprintf(command, "INFO time_left %lld\n", timeoutmatch - timercomputermatch + timercomputerincrement);
 						send_command(command);
-						if(hashautoclear) send_command("yxhashclear\n");
+						if (hashautoclear)
+							send_command("yxhashclear\n");
 						sprintf(command, "start %d %d\n", boardsizew, boardsizeh);
 						send_command(command);
 						sprintf(command, "board\n");
 						send_command(command);
-						for(i=0; i<piecenum; i++)
+						for (i = 0; i < piecenum; i++)
 						{
-							sprintf(command, "%d,%d,%d\n", movepath[i]/boardsizew,
-								movepath[i]%boardsizew, piecenum%2==i%2 ? 1 : 2);
+							sprintf(command, "%d,%d,%d\n", movepath[i] / boardsizew,
+									movepath[i] % boardsizew, piecenum % 2 == i % 2 ? 1 : 2);
 							send_command(command);
 						}
 						sprintf(command, "done\n");
@@ -6378,18 +6892,18 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 				}
 			}
 		}
-		
+
 		g_free(string);
 		g_free(rawstring);
-	} while(g_io_channel_get_buffer_condition(channel) == G_IO_IN);
+	} while (g_io_channel_get_buffer_condition(channel) == G_IO_IN);
 	return TRUE; /* TRUE means that the recalling function still runs later, while FALSE indicates it no longer runs */
 }
 gboolean iochannelerr_watch(GIOChannel *channel, GIOCondition cond, gpointer data)
 {
-	if(cond & G_IO_HUP)
+	if (cond & G_IO_HUP)
 	{
 		g_io_channel_unref(channel);
-		return FALSE ;
+		return FALSE;
 	}
 	return TRUE;
 }
@@ -6399,26 +6913,28 @@ int64_t read_int_from_file(FILE *in)
 	int flag = 0;
 	char c;
 
-	while(fscanf(in, "%c", &c) != EOF)
+	while (fscanf(in, "%c", &c) != EOF)
 	{
-		if(flag&1)
+		if (flag & 1)
 		{
-			if(c=='\n') flag &= ~1;
+			if (c == '\n')
+				flag &= ~1;
 		}
 		else
 		{
-			if(c==';')
+			if (c == ';')
 			{
 				flag |= 1;
-				if(flag & 2) return (flag&4)?-num:num;
+				if (flag & 2)
+					return (flag & 4) ? -num : num;
 			}
-			else if(c<='9' && c>='0')
+			else if (c <= '9' && c >= '0')
 			{
 				num *= 10;
-				num += c-'0';
+				num += c - '0';
 				flag |= 2;
 			}
-			else if(c=='-')
+			else if (c == '-')
 			{
 				num = 0;
 				flag |= 2;
@@ -6426,11 +6942,12 @@ int64_t read_int_from_file(FILE *in)
 			}
 			else
 			{
-				if(flag & 2) return (flag&4)?-num:num;
+				if (flag & 2)
+					return (flag & 4) ? -num : num;
 			}
 		}
 	}
-	return (flag&4)?-num:num;
+	return (flag & 4) ? -num : num;
 }
 void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int def_toolbar)
 {
@@ -6439,34 +6956,39 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 	int t;
 	int i;
 
-	if((in = fopen("settings.txt", "r")) != NULL)
+	if ((in = fopen("settings.txt", "r")) != NULL)
 	{
 		boardsizeh = read_int_from_file(in);
-		if(def_boardsizeh >= 5 && def_boardsizeh <= MAX_SIZE)
+		if (def_boardsizeh >= 5 && def_boardsizeh <= MAX_SIZE)
 		{
 			boardsizeh = def_boardsizeh;
 		}
-		if(boardsizeh > MAX_SIZE || boardsizeh < 5) boardsizeh = 15;
+		if (boardsizeh > MAX_SIZE || boardsizeh < 5)
+			boardsizeh = 15;
 		boardsizew = read_int_from_file(in);
 		if (def_boardsizew >= 5 && def_boardsizew <= MAX_SIZE)
 		{
 			boardsizew = def_boardsizew;
 		}
-		if (boardsizew > MAX_SIZE || boardsizew < 5) boardsizew = 15;
+		if (boardsizew > MAX_SIZE || boardsizew < 5)
+			boardsizew = 15;
 		language = read_int_from_file(in);
 		rboardsizeh = boardsizeh;
 		rboardsizew = boardsizew;
 		rlanguage = language;
-		if(def_language >= 0 && def_language <= 1) language = def_language;
-		if(language < 0) language = 0;
+		if (def_language >= 0 && def_language <= 1)
+			language = def_language;
+		if (language < 0)
+			language = 0;
 		inforule = read_int_from_file(in);
-		if(inforule < 0 || inforule > 6) inforule = 0;
-		if(inforule == 3)
+		if (inforule < 0 || inforule > 6)
+			inforule = 0;
+		if (inforule == 3)
 		{
 			inforule = 0;
 			specialrule = 2;
 		}
-		if(inforule == 4)
+		if (inforule == 4)
 		{
 			inforule = 2;
 			specialrule = 1;
@@ -6483,93 +7005,135 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 		}
 		computerside = 0;
 		t = read_int_from_file(in);
-		if(t == 1) computerside |= 1;
+		if (t == 1)
+			computerside |= 1;
 		t = read_int_from_file(in);
-		if(t == 1) computerside |= 2;
+		if (t == 1)
+			computerside |= 2;
 		levelchoice = read_int_from_file(in);
-		if(levelchoice < 0 || levelchoice > 11) levelchoice = 1;
+		if (levelchoice < 0 || levelchoice > 11)
+			levelchoice = 1;
 		timeoutturn = read_int_from_file(in) * 1000;
-		if(timeoutturn <= 0) timeoutturn = 1000000;
+		if (timeoutturn <= 0)
+			timeoutturn = 1000000;
 		timeoutmatch = read_int_from_file(in) * 1000;
-		if(timeoutmatch <= 0) timeoutmatch = 1000000000;
+		if (timeoutmatch <= 0)
+			timeoutmatch = 1000000000;
 		maxdepth = read_int_from_file(in);
-		if(maxdepth < 2 || maxdepth > boardsizeh*boardsizew) maxdepth = boardsizeh*boardsizew;
+		if (maxdepth < 2 || maxdepth > boardsizeh * boardsizew)
+			maxdepth = boardsizeh * boardsizew;
 		maxnode = read_int_from_file(in);
-		if(maxnode < 1000) maxnode = 1000000000;
+		if (maxnode < 1000)
+			maxnode = 1000000000;
 		cautionfactor = read_int_from_file(in);
-		if(cautionfactor < 0 || cautionfactor > CAUTION_NUM) cautionfactor = 1;
+		if (cautionfactor < 0 || cautionfactor > CAUTION_NUM)
+			cautionfactor = 1;
 		showtoolbarboth = read_int_from_file(in);
-		if(def_toolbar >= 0 && def_toolbar <= 2) showtoolbarboth = def_toolbar;
-		if(showtoolbarboth < 0 || showtoolbarboth > 2) showtoolbarboth = 1;
+		if (def_toolbar >= 0 && def_toolbar <= 2)
+			showtoolbarboth = def_toolbar;
+		if (showtoolbarboth < 0 || showtoolbarboth > 2)
+			showtoolbarboth = 1;
 		showlog = read_int_from_file(in);
-		if(showlog < 0 || showlog > 1) showlog = 1;
+		if (showlog < 0 || showlog > 1)
+			showlog = 1;
 		shownumber = read_int_from_file(in);
-		if(shownumber < 0 || shownumber > 1) shownumber = 1;
+		if (shownumber < 0 || shownumber > 1)
+			shownumber = 1;
 		showanalysis = read_int_from_file(in);
-		if(showanalysis < 0 || showanalysis > 1) showanalysis = 1;
+		if (showanalysis < 0 || showanalysis > 1)
+			showanalysis = 1;
 		showwarning = read_int_from_file(in);
-		if(showwarning < 0 || showwarning > 1) showwarning = 1;
+		if (showwarning < 0 || showwarning > 1)
+			showwarning = 1;
 		blockautoreset = read_int_from_file(in);
-		if(blockautoreset < 0 || blockautoreset > 1) blockautoreset = 0;
+		if (blockautoreset < 0 || blockautoreset > 1)
+			blockautoreset = 0;
 		threadnum = read_int_from_file(in);
-		if(threadnum < 1 /*|| threadnum > maxthreadnum*/) threadnum = 1;
+		if (threadnum < 1 /*|| threadnum > maxthreadnum*/)
+			threadnum = 1;
 		hashsize = read_int_from_file(in);
-		if(hashsize < 0 /*|| hashsize > maxhashsize*/) hashsize = 19;
+		if (hashsize < 0 /*|| hashsize > maxhashsize*/)
+			hashsize = 19;
 		threadsplitdepth = read_int_from_file(in);
-		if(threadsplitdepth < MIN_SPLIT_DEPTH || threadsplitdepth > MAX_SPLIT_DEPTH) threadsplitdepth = 8;
+		if (threadsplitdepth < MIN_SPLIT_DEPTH || threadsplitdepth > MAX_SPLIT_DEPTH)
+			threadsplitdepth = 8;
 		blockpathautoreset = read_int_from_file(in);
-		if (blockpathautoreset < 0 || blockpathautoreset > 1) blockpathautoreset = 0;
+		if (blockpathautoreset < 0 || blockpathautoreset > 1)
+			blockpathautoreset = 0;
 		infopondering = read_int_from_file(in);
-		if (infopondering < 0 || infopondering > 1) infopondering = 0;
+		if (infopondering < 0 || infopondering > 1)
+			infopondering = 0;
 		infovcthread = read_int_from_file(in);
-		if (infovcthread < 0 || infovcthread > 2) infovcthread = 0;
+		if (infovcthread < 0 || infovcthread > 2)
+			infovcthread = 0;
 		hashautoclear = read_int_from_file(in);
-		if (hashautoclear < 0 || hashautoclear > 1) hashautoclear = 0;
+		if (hashautoclear < 0 || hashautoclear > 1)
+			hashautoclear = 0;
 		toolbarpos = read_int_from_file(in);
-		if (toolbarpos < 0 || toolbarpos > 1) toolbarpos = 1;
+		if (toolbarpos < 0 || toolbarpos > 1)
+			toolbarpos = 1;
 		toolbarnum = read_int_from_file(in);
-		if (toolbarnum < 0 || toolbarnum > MAX_TOOLBAR_ITEM) toolbarnum = 6;
+		if (toolbarnum < 0 || toolbarnum > MAX_TOOLBAR_ITEM)
+			toolbarnum = 6;
 		hotkeynum = read_int_from_file(in);
-		if (hotkeynum < 0 || hotkeynum > MAX_HOTKEY_ITEM) hotkeynum = 6;
+		if (hotkeynum < 0 || hotkeynum > MAX_HOTKEY_ITEM)
+			hotkeynum = 6;
 		showclock = read_int_from_file(in);
-		if (showclock < 0 || showclock > 1) showclock = 1;
+		if (showclock < 0 || showclock > 1)
+			showclock = 1;
 		increment = read_int_from_file(in);
-		if (increment < 0 || increment > 200000) increment = 0;
+		if (increment < 0 || increment > 200000)
+			increment = 0;
 		showforbidden = read_int_from_file(in);
-		if (showforbidden < 0 || showforbidden > 1) showforbidden = 1;
+		if (showforbidden < 0 || showforbidden > 1)
+			showforbidden = 1;
 		checktimeout = read_int_from_file(in);
-		if (checktimeout < 0 || checktimeout > 1) checktimeout = 1;
+		if (checktimeout < 0 || checktimeout > 1)
+			checktimeout = 1;
 		usedatabase = read_int_from_file(in);
-		if (usedatabase < 0 || usedatabase > 1) usedatabase = 1;
+		if (usedatabase < 0 || usedatabase > 1)
+			usedatabase = 1;
 		databasereadonly = read_int_from_file(in);
-		if (databasereadonly < 0 || databasereadonly > 1) databasereadonly = 0;
+		if (databasereadonly < 0 || databasereadonly > 1)
+			databasereadonly = 0;
 		showboardtext = read_int_from_file(in);
-		if (showboardtext < 0 || showboardtext > 1) showboardtext = 1;
+		if (showboardtext < 0 || showboardtext > 1)
+			showboardtext = 1;
 		showdbdelconfirm = read_int_from_file(in);
-		if (showdbdelconfirm < 0 || showdbdelconfirm > 1) showdbdelconfirm = 1;
+		if (showdbdelconfirm < 0 || showdbdelconfirm > 1)
+			showdbdelconfirm = 1;
 		recorddebuglog = read_int_from_file(in);
-		if (recorddebuglog < 0 || recorddebuglog > 1) recorddebuglog = 0;
+		if (recorddebuglog < 0 || recorddebuglog > 1)
+			recorddebuglog = 0;
 		t = read_int_from_file(in);
-		if (t > 0 && t<1000) hdpiscale = t / 100.0;
+		if (t > 0 && t < 1000)
+			hdpiscale = t / 100.0;
 		t = read_int_from_file(in);
-		if (t >= 0 && t <= 1) nbestsym = t;
+		if (t >= 0 && t <= 1)
+			nbestsym = t;
 		losssaturation = read_int_from_file(in);
-		if (losssaturation < 0 || losssaturation > 100) losssaturation = 0;
+		if (losssaturation < 0 || losssaturation > 100)
+			losssaturation = 0;
 		winsaturation = read_int_from_file(in);
-		if (winsaturation < 0 || winsaturation > 100) winsaturation = 0;
+		if (winsaturation < 0 || winsaturation > 100)
+			winsaturation = 0;
 		minsaturation = read_int_from_file(in);
-		if (minsaturation < 0 || minsaturation > 100) minsaturation = 0;
+		if (minsaturation < 0 || minsaturation > 100)
+			minsaturation = 0;
 		maxsaturation = read_int_from_file(in);
-		if (maxsaturation < 0 || maxsaturation > 100) maxsaturation = 0;
+		if (maxsaturation < 0 || maxsaturation > 100)
+			maxsaturation = 0;
 		colorvalue = read_int_from_file(in);
-		if (colorvalue < 0 || colorvalue > 100) colorvalue = 100;
+		if (colorvalue < 0 || colorvalue > 100)
+			colorvalue = 100;
 		fontbasesize = read_int_from_file(in);
-		if (fontbasesize < 1 || fontbasesize > 20) fontbasesize = 10;
+		if (fontbasesize < 1 || fontbasesize > 20)
+			fontbasesize = 10;
 		fclose(in);
 	}
 	for (i = 0; i < toolbarnum; i++)
 	{
-		sprintf(s, "function/toolbar%d.txt", i+1);
+		sprintf(s, "function/toolbar%d.txt", i + 1);
 		if ((in = fopen(s, "r")) != NULL)
 		{
 			int j = 0;
@@ -6581,7 +7145,8 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 			while (fgets(toolbarcommand[i] + j, MAX_TOOLBAR_COMMAND_LEN, in))
 			{
 				j += strlen(toolbarcommand[i] + j);
-				while (j > 0 && (toolbarcommand[i][j - 1] == '\n' || toolbarcommand[i][j - 1] == '\r')) j--;
+				while (j > 0 && (toolbarcommand[i][j - 1] == '\n' || toolbarcommand[i][j - 1] == '\r'))
+					j--;
 				toolbarcommand[i][j] = '\n';
 				j++;
 				toolbarcommand[i][j] = 0;
@@ -6600,7 +7165,8 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 			while (fgets(hotkeycommand[i] + j, MAX_HOTKEY_COMMAND_LEN, in))
 			{
 				j += strlen(hotkeycommand[i] + j);
-				while (j > 0 && (hotkeycommand[i][j - 1] == '\n' || hotkeycommand[i][j - 1] == '\r')) j--;
+				while (j > 0 && (hotkeycommand[i][j - 1] == '\n' || hotkeycommand[i][j - 1] == '\r'))
+					j--;
 				hotkeycommand[i][j] = '\n';
 				j++;
 				hotkeycommand[i][j] = 0;
@@ -6608,30 +7174,25 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 			fclose(in);
 		}
 	}
-	for (i = 0; ; i++)
+	// 加载自定义图标（如果存在icon文件夹）
+	for (i = 0;; i++)
 	{
 		GdkPixbuf *pixbuf;
-		GtkStockItem item;
-		GtkIconFactory *factory;
-		GtkIconSet *iconset;
 		sprintf(s, "icon/yixin%d.ico", i + 1);
-		if ((pixbuf = gdk_pixbuf_new_from_file(s, NULL)) == NULL) break;
-		item.stock_id = s;
-		item.label = s;
-		item.modifier = 0;
-		item.keyval = 0;
-		item.translation_domain = 0;
-		gtk_stock_add(&item, 1);
-		factory = gtk_icon_factory_new();
-		iconset = gtk_icon_set_new_from_pixbuf(pixbuf);
-		gtk_icon_factory_add_default(factory);
-		gtk_icon_factory_add(factory, s, iconset);
-		gtk_icon_set_unref(iconset);
+		if ((pixbuf = gdk_pixbuf_new_from_file(s, NULL)) == NULL)
+			break;
+
+		// 将自定义图标添加到图标主题（现代方式）
+		GtkIconTheme *icon_theme = gtk_icon_theme_get_default();
+		char icon_name[50];
+		sprintf(icon_name, "yixin-custom-%d", i + 1);
+
+		// 由于GTK3中图标工厂已弃用，这里我们跳过注册自定义图标
+		// 自定义图标可以通过其他方式加载
 		g_object_unref(G_OBJECT(pixbuf));
-		g_object_unref(factory);
 	}
 	sprintf(s, "piece_%d.bmp", max(boardsizeh, boardsizew));
-	if((in = fopen(s, "rb")) != NULL)
+	if ((in = fopen(s, "rb")) != NULL)
 	{
 		strcpy(piecepicname, s);
 		fclose(in);
@@ -6639,8 +7200,9 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 	piecenum = 0;
 	memset(movepath, -1, sizeof(movepath));
 
-	clanguage = (char *)malloc(1024 * sizeof(char*));
-	for (i = 0; i < 1024; i++) clanguage[i] = NULL;
+	clanguage = (char *)malloc(1024 * sizeof(char *));
+	for (i = 0; i < 1024; i++)
+		clanguage[i] = NULL;
 
 	sprintf(s, "language\\%d.lng", language);
 	if ((in = fopen(s, "r")) != NULL)
@@ -6654,10 +7216,13 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 				s[l - 1] = 0;
 				l--;
 			}
-			if (l == 0) continue;
-			if (s[0] == ';') continue;
+			if (l == 0)
+				continue;
+			if (s[0] == ';')
+				continue;
 			sscanf(s, "%d", &p);
-			for (i = 0; i < l && s[i] != '='; i++);
+			for (i = 0; i < l && s[i] != '='; i++)
+				;
 			clanguage[p] = strdup(s + i + 1);
 		}
 		fclose(in);
@@ -6667,13 +7232,15 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 		language = 0;
 	}
 
-	if((in = fopen("settings_font.txt", "r")) != NULL)
+	if ((in = fopen("settings_font.txt", "r")) != NULL)
 	{
-		for (int i = 0; i < 4; i++) {
+		for (int i = 0; i < 4; i++)
+		{
 			fgets(s, sizeof(s), in);
 			s[strcspn(s, "\n")] = 0;
 			char *semicolon = strchr(s, ';');
-			if (semicolon) *semicolon = '\0';
+			if (semicolon)
+				*semicolon = '\0';
 			strcpy(fontname[i], s);
 		}
 	}
@@ -6681,9 +7248,9 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 static void childexit_watch(GPid pid, gint status, gpointer *data)
 {
 #ifdef G_OS_WIN32
-	gchar *argv[] = { "Yixin.exe", NULL };
+	gchar *argv[] = {"Yixin.exe", NULL};
 #else
-	gchar *argv[] = { "./Yixin", NULL };
+	gchar *argv[] = {"./Yixin", NULL};
 #endif
 	g_spawn_close_pid(pid);
 
@@ -6693,12 +7260,15 @@ static void childexit_watch(GPid pid, gint status, gpointer *data)
 		int i;
 		for (i = 0; i < 1024; i++)
 		{
-			if (clanguage[i] != NULL) free(clanguage[i]);
+			if (clanguage[i] != NULL)
+				free(clanguage[i]);
 		}
 		free(clanguage);
 	}
-	if (debuglog != NULL) fclose(debuglog);
-	if (respawn) g_spawn_async(NULL, argv, NULL, G_SPAWN_DO_NOT_REAP_CHILD, NULL, NULL, NULL, NULL);
+	if (debuglog != NULL)
+		fclose(debuglog);
+	if (respawn)
+		g_spawn_async(NULL, argv, NULL, G_SPAWN_DO_NOT_REAP_CHILD, NULL, NULL, NULL, NULL);
 	gtk_main_quit();
 }
 
@@ -6715,8 +7285,8 @@ void load_engine()
 	GError *error = NULL;
 
 	ret = g_spawn_async_with_pipes(NULL, argv, NULL, G_SPAWN_DO_NOT_REAP_CHILD,
-		NULL, NULL, &pid, &in, &out, &err, &error);
-	if(!ret)
+								   NULL, NULL, &pid, &in, &out, &err, &error);
+	if (!ret)
 	{
 		FILE *out;
 		out = fopen("ERROR.txt", "w");
@@ -6729,12 +7299,12 @@ void load_engine()
 	}
 #ifdef G_OS_WIN32
 	iochannelin = g_io_channel_win32_new_fd(in);
-    iochannelout = g_io_channel_win32_new_fd(out);
-    iochannelerr = g_io_channel_win32_new_fd(err);
+	iochannelout = g_io_channel_win32_new_fd(out);
+	iochannelerr = g_io_channel_win32_new_fd(err);
 #else
 	iochannelin = g_io_channel_unix_new(in);
-    iochannelout = g_io_channel_unix_new(out);
-    iochannelerr = g_io_channel_unix_new(err);
+	iochannelout = g_io_channel_unix_new(out);
+	iochannelerr = g_io_channel_unix_new(err);
 #endif
 
 	// use binary encoding for pipes
@@ -6744,9 +7314,9 @@ void load_engine()
 
 	g_child_watch_add(pid, (GChildWatchFunc)childexit_watch, NULL);
 	g_io_add_watch(iochannelout, G_IO_IN | G_IO_PRI | G_IO_HUP, (GIOFunc)iochannelout_watch, NULL);
-	//g_io_add_watch_full(iochannelout, G_PRIORITY_HIGH, G_IO_IN | G_IO_HUP, (GIOFunc)iochannelout_watch, NULL, NULL);
-    g_io_add_watch(iochannelerr, G_IO_IN | G_IO_PRI | G_IO_HUP, (GIOFunc)iochannelerr_watch, NULL);
-	
+	// g_io_add_watch_full(iochannelout, G_PRIORITY_HIGH, G_IO_IN | G_IO_HUP, (GIOFunc)iochannelout_watch, NULL, NULL);
+	g_io_add_watch(iochannelerr, G_IO_IN | G_IO_PRI | G_IO_HUP, (GIOFunc)iochannelerr_watch, NULL);
+
 	if (recorddebuglog)
 	{
 		debuglog = fopen("debuglog.txt", "at+");
@@ -6770,23 +7340,18 @@ void init_engine()
 	set_pondering(infopondering);
 	setvcthread(infovcthread);
 }
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
 	static GOptionEntry options[] =
-	{
-		{ "size", 's', 0, G_OPTION_ARG_INT, NULL,
-			"Board size to use", "Integer"
-		},
-		{ "lang", 'l', 0, G_OPTION_ARG_INT, NULL,
-			"language", "Integer"
-		},
-		{ "toolbar", '\0', 0, G_OPTION_ARG_INT, NULL,
-			"Tool bar style", "Integer"
-		},
 		{
-			NULL
-		},
-	};
+			{"size", 's', 0, G_OPTION_ARG_INT, NULL,
+			 "Board size to use", "Integer"},
+			{"lang", 'l', 0, G_OPTION_ARG_INT, NULL,
+			 "language", "Integer"},
+			{"toolbar", '\0', 0, G_OPTION_ARG_INT, NULL,
+			 "Tool bar style", "Integer"},
+			{NULL},
+		};
 	GError *error = NULL;
 	gint boardsizeh = -1;
 	gint boardsizew = -1;

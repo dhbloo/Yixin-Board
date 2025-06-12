@@ -1,0 +1,8 @@
+303
+system-run
+
+command on
+info strength 60
+command off
+thinking start
+
