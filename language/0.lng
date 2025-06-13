@@ -38,8 +38,7 @@
 39=Number of Threads
 40=Split Depth
 41=Hash Size (MB)
-42=Board Height (10 ~ 22):
-43=Board Width (10 ~ 22):
+43=Board Size (5 ~ 22):
 44=Play
 45=Stop
 46=Undo
@@ -115,6 +114,7 @@
 118=Cancel
 119=Toolbar Edit
 120=Loading database from
+121=Delete
 
 
 201=VCT

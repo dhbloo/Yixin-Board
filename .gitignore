@@ -20,4 +20,9 @@ gtkrc*
 !/default_settings/*.txt
 !/function/*.txt
 Yixin
+Yixin.app
+Yixin.dSYM
 *.o
+.DS_Store
+.vscode
+.idea
