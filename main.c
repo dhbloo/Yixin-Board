@@ -5143,6 +5143,17 @@ void create_windowmain()
     channels          = gdk_pixbuf_get_n_channels(pixbufboard[0][0]);
     rowstride         = gdk_pixbuf_get_rowstride(pixbufboard[0][0]);
 
+#ifdef __APPLE__
+    // Fix the seam between pieces in the table grid
+    // This will cause the coordinate label to also have the background color, however.
+    GtkCssProvider *css_provider = gtk_css_provider_new();
+    guchar         *pixels       = gdk_pixbuf_get_pixels(pixbuf);
+    gchar          *css =
+        g_strdup_printf("* { background-color: rgb(%d,%d,%d); }", pixels[0], pixels[1], pixels[2]);
+    gtk_css_provider_load_from_data(css_provider, css, -1, NULL);
+    g_free(css);
+#endif
+
     pixbufboard[1][0] = copy_subpixbuf(pixbuf, size, 0, size, size);
     for (i = 2; i <= 4; i++) {
         guchar *pixels1, *pixels2;
@@ -5340,9 +5351,20 @@ void create_windowmain()
                 imageboard[i][j] = gtk_image_new_from_pixbuf(pixbufboard[imgtypeboard[i][j]][0]);
             else
                 imageboard[i][j] = gtk_image_new_from_pixbuf(pixbufboard[0][1]);
+
+#ifdef __APPLE__
+            gtk_style_context_add_provider(gtk_widget_get_style_context(imageboard[i][j]),
+                                           GTK_STYLE_PROVIDER(css_provider),
+                                           GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+#endif
+
             gtk_grid_attach(GTK_GRID(tableboard), imageboard[i][j], j, i, 1, 1);
         }
     }
+
+#ifdef __APPLE__
+    g_object_unref(css_provider);
+#endif
 
     g_object_unref(background);
     background = NULL;
@@ -5809,6 +5831,8 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
     }
     do {
         g_io_channel_read_line(channel, &rawstring, &size, NULL, NULL);
+        if (!rawstring)
+            break;
 
         if (commandmode == 1) {
             print_log(rawstring);
@@ -6242,8 +6266,28 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
         else if (strncmp(string, "MESSAGE", 7) == 0) {
             printf_log("%s", string);
         }
-        else if (strncmp(string, "DETAIL", 6) == 0) {
-            printf_log("%s", string);
+        else if (strncmp(string, "INFO", 4) == 0) {
+            char *p = string + 5;
+            // find the first ' ' and split the first part as key and the rest part as value
+            char *key, *value;
+            char *space = strchr(p, ' ');
+            if (space) {
+                key   = g_strndup(p, space - p);
+                value = space + 1;
+                // copy a new string as value and remove the '\n' at the end
+                char *newline = strchr(value, '\n');
+                value         = newline ? g_strndup(value, newline - value) : value;
+            }
+            else {
+                key   = g_strdup(p);
+                value = NULL;
+            }
+
+            // TODO: parse the key and value
+
+            g_free(key);
+            if (value)
+                g_free(value);
         }
         else if (strncmp(string, "DEBUG", 5) == 0) {
             printf_log("%s", string);
@@ -6696,9 +6740,9 @@ void init_engine()
     piecenum = 0;
     memset(movepath, -1, sizeof(movepath));
     char command[80];
-    send_command("info show_detail 1\n");
+    send_command("info show_detail 3\n");
     send_command("yxshowinfo\n");
-    sprintf(command, "START %d %d\n", boardsize, boardsize);
+    sprintf(command, "START %d\n", boardsize);
     send_command(command);
     set_level(levelchoice);
     set_cautionfactor(cautionfactor);
