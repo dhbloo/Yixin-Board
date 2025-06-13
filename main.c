@@ -7,12 +7,6 @@
 #include <math.h>
 #include <locale.h>
 #include "yixin.h"
-#include "resource.h" /* not needed if you are not provided with resource.h, Yixin.rc and icon.ico */
-#ifdef G_OS_WIN32
-#include <windows.h>
-#else
-#include <dirent.h>
-#endif
 
 #define MAX_SIZE 22
 #define CAUTION_NUM 5 // 0..CAUTION_NUM
@@ -47,13 +41,12 @@ int64_t timeoutmatch = 2000000;
 int64_t maxnode = 1000000000;
 int maxdepth = 100;
 int maxthreadnum = 1; // 1..maxthreadnum
-int maxhashsize = 30;
+int maxhashsizemb = 65536;
 int increment = 0;
 int computerside = 0; /* 0 none 1 black 2 while 3 black&white */
 int cautionfactor = 1;
 int threadnum = 1;
-int hashsize = 19;
-int threadsplitdepth = 7;
+int hashsizemb = 256;
 int nbestsym = 0;
 int board[MAX_SIZE][MAX_SIZE];
 int boardnumber[MAX_SIZE][MAX_SIZE];
@@ -87,8 +80,7 @@ int showtoolbarboth = 1;
 int showwarning = 1;
 int showdbdelconfirm = 1;
 int checktimeout = 1;
-int toolbarpos = 1;
-int fontbasesize = 10;
+int toolbarpos = 0;
 int language = 0; /* 0: English 1: Other languages */
 int rlanguage = 0;
 char **clanguage = NULL;				   /* Custom language */
@@ -109,6 +101,8 @@ GdkPixbuf *pixbufboardchar[9][14][128 + 100 + 100 + 100][2];
 int imgtypeboard[MAX_SIZE][MAX_SIZE];
 char piecepicname[80] = "piece.bmp";
 char fontname[4][120];
+const char *font_familyboardtext;
+int font_sizeboardtext;
 /* log */
 GtkWidget *textlog, *textpos, *textdbcomment;
 GtkTextBuffer *buffertextlog, *buffertextcommand, *buffertextdbcomment, *buffertextpos;
@@ -119,7 +113,7 @@ double hdpiscale = 1.0;
 
 int toolbarnum = 6;
 
-GtkWidget *savingdialog;
+GtkWidget *savingdialog, *loadingdialog;
 GtkWidget *windowclock;
 GtkWidget *clocklabel[4];
 GtkWidget *playerlabel[2];
@@ -261,7 +255,7 @@ char *_T(char *s)
 		return NULL;
 
 	char *result = g_locale_to_utf8(s, -1, 0, 0, 0);
-	return result ? result : g_strdup("??");
+	return result ? result : "??";
 }
 
 char *__invT(char *s)
@@ -270,7 +264,7 @@ char *__invT(char *s)
 		return NULL;
 
 	char *result = g_locale_from_utf8(s, -1, 0, 0, 0);
-	return result ? result : g_strdup("??");
+	return result ? result : "??";
 }
 
 static char *pending_text_buffer = NULL;
@@ -445,86 +439,41 @@ int printf_log(char *fmt, ...)
 	va_start(va, fmt);
 	cnt = vsprintf(buffer, fmt, va);
 
+#define REPLACE_STRING(str, len, index)                        \
+	if (strncmp(buffer + i, str, len) == 0 &&                  \
+		(buffer[i + len] == '\0' || isspace(buffer[i + len]))) \
+	{                                                          \
+		strcpy(p, clanguage[index]);                           \
+		p += strlen(clanguage[index]);                         \
+		i += len;                                              \
+		continue;                                              \
+	}
+
 	if (language)
 	{
 		for (i = 0; buffer[i];)
 		{
-			if (strncmp(buffer + i, "BESTLINE", 8) == 0)
-			{
-				strcpy(p, clanguage[0]);
-				p += strlen(clanguage[0]);
-				i += 8;
-				continue;
-			}
-			if (strncmp(buffer + i, "EVALUATION", 10) == 0)
-			{
-				strcpy(p, clanguage[1]);
-				p += strlen(clanguage[1]);
-				i += 10;
-				continue;
-			}
-			if (strncmp(buffer + i, "SPEED", 5) == 0)
-			{
-				strcpy(p, clanguage[2]);
-				p += strlen(clanguage[2]);
-				i += 5;
-				continue;
-			}
-			if (strncmp(buffer + i, "TIME", 4) == 0)
-			{
-				strcpy(p, clanguage[3]);
-				p += strlen(clanguage[3]);
-				i += 4;
-				continue;
-			}
-			if (strncmp(buffer + i, "DEPTH", 5) == 0)
-			{
-				strcpy(p, clanguage[4]);
-				p += strlen(clanguage[4]);
-				i += 5;
-				continue;
-			}
-			if (strncmp(buffer + i, "BLOCK", 5) == 0)
-			{
-				strcpy(p, clanguage[5]);
-				p += strlen(clanguage[5]);
-				i += 5;
-				continue;
-			}
-			if (strncmp(buffer + i, "NODE", 4) == 0)
-			{
-				strcpy(p, clanguage[6]);
-				p += strlen(clanguage[6]);
-				i += 4;
-				continue;
-			}
-			if (strncmp(buffer + i, "VAL", 3) == 0)
-			{
-				strcpy(p, clanguage[7]);
-				p += strlen(clanguage[7]);
-				i += 3;
-				continue;
-			}
-			if (strncmp(buffer + i, "MS", 2) == 0)
-			{
-				strcpy(p, clanguage[8]);
-				p += strlen(clanguage[8]);
-				i += 2;
-				continue;
-			}
-			if (strncmp(buffer + i, "RULE", 4) == 0)
-			{
-				strcpy(p, clanguage[9]);
-				p += strlen(clanguage[9]);
-				i += 4;
-				continue;
-			}
+			REPLACE_STRING("BESTLINE", 8, 0)
+			REPLACE_STRING("EVALUATION", 10, 1)
+			REPLACE_STRING("SPEED", 5, 2)
+			REPLACE_STRING("TIME", 4, 3)
+			REPLACE_STRING("DEPTH", 5, 4)
+			REPLACE_STRING("BLOCK", 5, 5)
+			REPLACE_STRING("EVAL", 4, 7)
+			REPLACE_STRING("VAL", 3, 7)
+			REPLACE_STRING("NODE", 4, 6)
+			REPLACE_STRING("NODES", 5, 6)
+			REPLACE_STRING("MS", 2, 8)
+			REPLACE_STRING("RULE", 4, 9)
+
 			*p = buffer[i];
 			p++;
 			i++;
 		}
 		*p = '\0';
 	}
+
+#undef REPLACE_STRING
 	else
 	{
 		strcpy(text, buffer);
@@ -623,7 +572,7 @@ GdkPixbuf *draw_overlay_scaled(GdkPixbuf *pb, int w, int h, gchar *text, const c
 
 	// Set up font and markup
 	sprintf(format, "<span foreground='%s' weight='%s' size='%d' font_family='%s'>%%s</span>",
-			color, weight, (int)(fontbasesize * 1000 * scale), fontname[0]);
+			color, weight, (int)(font_sizeboardtext * 1000 * scale), font_familyboardtext);
 	gchar *escaped_text = g_markup_escape_text(text, -1);
 	markup = g_strdup_printf(format, escaped_text);
 	pango_layout_set_markup(layout, markup, -1);
@@ -1898,12 +1847,12 @@ void set_threadnum(int x)
 void set_hashsize(int x)
 {
 	gchar command[80];
-	if (x < 0)
-		x = 0;
-	if (x > maxhashsize)
-		x = maxhashsize;
-	hashsize = x;
-	sprintf(command, "INFO hash_size %d\n", hashsize == 0 ? 0 : (1 << hashsize));
+	if (x <= 0)
+		x = 1;
+	if (x > maxhashsizemb)
+		x = maxhashsizemb;
+	hashsizemb = x;
+	sprintf(command, "INFO hash_size %lld\n", (long long)hashsizemb << 10);
 	send_command(command);
 }
 
@@ -1949,25 +1898,18 @@ void show_dialog_settings_custom_entry(GtkWidget *widget, gpointer data)
 		return;
 	}
 
-	// FIXME: it seems that gtk_widget_set_visible is not working properly with gtk_widget_hide and gtk_widget_show in 0.2.24.10
 	if (GPOINTER_TO_INT(data) == 0) // unlimited time
 	{
-		// gtk_widget_set_sensitive(editable[0], FALSE);
-		// gtk_widget_set_sensitive(editable[1], FALSE);
 		gtk_widget_set_visible(editable[0], FALSE);
 		gtk_widget_set_visible(editable[1], FALSE);
 	}
 	else if (GPOINTER_TO_INT(data) == 1) // custom level
 	{
-		// gtk_widget_set_sensitive(editable[0], TRUE);
-		// gtk_widget_set_sensitive(editable[1], FALSE);
 		gtk_widget_set_visible(editable[0], TRUE);
 		gtk_widget_set_visible(editable[1], FALSE);
 	}
 	else // if (data >= 2) //predefined level
 	{
-		// gtk_widget_set_sensitive(editable[0], FALSE);
-		// gtk_widget_set_sensitive(editable[1], TRUE);
 		gtk_widget_set_visible(editable[0], FALSE);
 		gtk_widget_set_visible(editable[1], TRUE);
 	}
@@ -2139,11 +2081,9 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
 
 	GtkAdjustment *adjustment_threads = gtk_adjustment_new(threadnum, 1, maxthreadnum, 1, 1, 1);
 	scalethreads = gtk_spin_button_new(adjustment_threads, 1, 0);
-	// gtk_widget_set_size_request(scalethreads, 100, -1);
 
-	GtkAdjustment *adjustment_hashsize = gtk_adjustment_new(hashsize, 0, maxhashsize, 1, 1, 1);
+	GtkAdjustment *adjustment_hashsize = gtk_adjustment_new(hashsizemb, 0, maxhashsizemb, 256, 256, 256);
 	scalehash = gtk_spin_button_new(adjustment_hashsize, 1, 0);
-	// gtk_widget_set_size_request(scalehash, 100, -1);
 
 	radiovcthread[0] = gtk_radio_button_new_with_label(NULL, language == 0 ? "None" : _T(clanguage[87]));
 	radiovcthread[1] = gtk_radio_button_new_with_label(gtk_radio_button_get_group(GTK_RADIO_BUTTON(radiovcthread[0])), language == 0 ? "Check VCT" : _T(clanguage[86]));
@@ -2710,164 +2650,51 @@ void show_dialog_custom_toolbar(GtkWidget *widget, gpointer data)
 	GtkTextBuffer *buffercommand;
 	GtkTextIter start, end;
 	int result;
-	int i, cnt, pi;
+	int i, icon_count, pi;
 	const gchar *ptext;
 	char text[40];
 
-	dialog = gtk_dialog_new_with_buttons(_T(clanguage[77]), windowmain,
-										 GTK_DIALOG_MODAL,
-										 _T(clanguage[78]), 1,
-										 _T(clanguage[79]), 2, NULL);
+	dialog = gtk_dialog_new_with_buttons(_T(clanguage[119]), windowmain,
+										 GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+										 _T(clanguage[117]), GTK_RESPONSE_ACCEPT,
+										 _T(clanguage[118]), GTK_RESPONSE_REJECT, NULL);
 	gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
 	gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
 
 	store = gtk_list_store_new(2, GDK_TYPE_PIXBUF, G_TYPE_STRING);
 
-	// 现代图标名称数组（替换stock图标）
-	const char *modern_icons[] = {
-		"go-first", "go-previous", "go-next", "go-last",
-		"media-playback-start", "media-playback-pause", "media-playback-stop",
-		"document-new", "document-open", "document-save", "document-save-as",
-		"edit-copy", "edit-cut", "edit-paste", "edit-undo", "edit-redo",
-		"edit-delete", "list-add", "list-remove",
-		"zoom-in", "zoom-out", "zoom-fit-best", "zoom-original",
-		"dialog-information", "dialog-warning", "dialog-error", "dialog-question",
-		"preferences-system", "applications-system", "system-run",
-		"folder-open", "folder-new", "folder",
-		"text-x-generic", "image-x-generic", "audio-x-generic", "video-x-generic",
-		"network-idle", "network-transmit", "network-receive",
-		"weather-clear", "weather-few-clouds", "weather-overcast",
-		"bookmark-new", "help-about", "help-contents",
-		NULL};
+	icon_count = pi = 0;
 
-	const char *icon_descriptions[] = {
-		"First", "Previous", "Next", "Last",
-		"Play", "Pause", "Stop",
-		"New", "Open", "Save", "Save As",
-		"Copy", "Cut", "Paste", "Undo", "Redo",
-		"Delete", "Add", "Remove",
-		"Zoom In", "Zoom Out", "Zoom Best", "Zoom Original",
-		"Info", "Warning", "Error", "Question",
-		"Settings", "System", "Execute",
-		"Open Folder", "New Folder", "Folder",
-		"Text File", "Image File", "Audio File", "Video File",
-		"Network Idle", "Network Send", "Network Receive",
-		"Clear Weather", "Cloudy", "Overcast",
-		"Bookmark", "About", "Help",
-		NULL};
-
-	cnt = pi = 0;
-
-	// 使用现代图标API
 	GtkIconTheme *icon_theme = gtk_icon_theme_get_default();
+	GList *icon_list = gtk_icon_theme_list_icons(icon_theme, NULL);
 
-	// 扫描icon文件夹中的所有ico文件
-	char **custom_icon_files = NULL;
-	int custom_icon_count = 0;
-
-#ifdef G_OS_WIN32
-	// Windows下使用FindFirstFile/FindNextFile
-	WIN32_FIND_DATA findFileData;
-	HANDLE hFind = FindFirstFile("icon\\*.ico", &findFileData);
-
-	if (hFind != INVALID_HANDLE_VALUE)
+	for (GList *iter = icon_list; iter != NULL; iter = iter->next)
 	{
-		do
+		char *icon_name = (char *)iter->data;
+		if (strstr(icon_name, "symbolic") != NULL)
+			continue;
+		if (gtk_icon_theme_has_icon(icon_theme, icon_name))
 		{
-			char full_path[260];
-			sprintf(full_path, "icon/%s", findFileData.cFileName);
-
-			// 重新分配内存来存储文件名
-			custom_icon_files = realloc(custom_icon_files, (custom_icon_count + 1) * sizeof(char *));
-			custom_icon_files[custom_icon_count] = strdup(full_path);
-			custom_icon_count++;
-		} while (FindNextFile(hFind, &findFileData) != 0);
-
-		FindClose(hFind);
-	}
-#else
-	// Linux/Unix下使用opendir/readdir
-	DIR *dir = opendir("icon");
-	if (dir != NULL)
-	{
-		struct dirent *entry;
-		while ((entry = readdir(dir)) != NULL)
-		{
-			if (strstr(entry->d_name, ".ico") != NULL)
-			{
-				char full_path[260];
-				sprintf(full_path, "icon/%s", entry->d_name);
-
-				// 重新分配内存来存储文件名
-				custom_icon_files = realloc(custom_icon_files, (custom_icon_count + 1) * sizeof(char *));
-				custom_icon_files[custom_icon_count] = strdup(full_path);
-				custom_icon_count++;
-			}
-		}
-		closedir(dir);
-	}
-#endif
-
-	// 添加找到的自定义图标文件
-	for (i = 0; i < custom_icon_count; i++)
-	{
-		GdkPixbuf *original_pixbuf = gdk_pixbuf_new_from_file(custom_icon_files[i], NULL);
-		if (original_pixbuf)
-		{
-			GtkTreeIter iter;
-			cnt++;
-
-			// 获取标准图标大小
-			gint icon_size;
-			gtk_icon_size_lookup(GTK_ICON_SIZE_BUTTON, &icon_size, NULL);
-
-			// 缩放自定义图标到与标准图标相同的大小
-			GdkPixbuf *pixbuf = gdk_pixbuf_scale_simple(original_pixbuf, icon_size, icon_size, GDK_INTERP_BILINEAR);
-			g_object_unref(original_pixbuf);
-
-			// 从文件路径中提取文件名作为描述
-			char *filename = strrchr(custom_icon_files[i], '/');
-			if (!filename)
-				filename = strrchr(custom_icon_files[i], '\\');
-			if (!filename)
-				filename = custom_icon_files[i];
-			else
-				filename++; // 跳过路径分隔符
-
-			gtk_list_store_append(store, &iter);
-			gtk_list_store_set(store, &iter, 0, pixbuf, 1, filename, -1);
-			g_object_unref(pixbuf);
-
-			if (strcmp(custom_icon_files[i], toolbaricon[GPOINTER_TO_INT(data)]) == 0)
-			{
-				pi = cnt - 1;
-			}
-		}
-	}
-
-	// 然后添加标准图标
-	for (i = 0; modern_icons[i] != NULL; i++)
-	{
-		if (gtk_icon_theme_has_icon(icon_theme, modern_icons[i]))
-		{
-			GdkPixbuf *pixbuf = gtk_icon_theme_load_icon(icon_theme, modern_icons[i],
+			GdkPixbuf *pixbuf = gtk_icon_theme_load_icon(icon_theme, icon_name,
 														 GTK_ICON_SIZE_BUTTON, 0, NULL);
 			if (pixbuf)
 			{
 				GtkTreeIter iter;
-				cnt++;
+				icon_count++;
 
 				gtk_list_store_append(store, &iter);
-				gtk_list_store_set(store, &iter, 0, pixbuf, 1, icon_descriptions[i], -1);
+				gtk_list_store_set(store, &iter, 0, pixbuf, 1, icon_name, -1);
 				g_object_unref(pixbuf);
 
-				if (strcmp(modern_icons[i], toolbaricon[GPOINTER_TO_INT(data)]) == 0)
+				if (strcmp(icon_name, toolbaricon[GPOINTER_TO_INT(data)]) == 0)
 				{
-					pi = cnt - 1;
+					pi = icon_count - 1;
 				}
 			}
 		}
+		g_free(icon_name);
 	}
+	g_list_free(icon_list);
 
 	model = GTK_TREE_MODEL(store);
 	combo = gtk_combo_box_new_with_model(model);
@@ -2916,32 +2743,23 @@ void show_dialog_custom_toolbar(GtkWidget *widget, gpointer data)
 
 	switch (result)
 	{
-	case 1:
+	case GTK_RESPONSE_ACCEPT:
 	{
 		gchar *command;
 		ptext = gtk_entry_get_text(GTK_ENTRY(entry));
 		if (is_integer(ptext))
-		{
 			sscanf(ptext, "%d", &toolbarlng[GPOINTER_TO_INT(data)]);
-		}
 		pi = gtk_combo_box_get_active(combo);
 
-		// 设置选择的图标
-		if (pi >= 0 && pi < cnt)
+		if (pi >= 0 && pi < icon_count)
 		{
-			if (pi < custom_icon_count)
+			GtkTreeIter iter;
+			gchar *text;
+			if (gtk_combo_box_get_active_iter(combo, &iter))
 			{
-				// 选择的是自定义图标
-				toolbaricon[GPOINTER_TO_INT(data)] = strdup(custom_icon_files[pi]);
-			}
-			else
-			{
-				// 选择的是标准图标
-				int standard_icon_index = pi - custom_icon_count;
-				if (standard_icon_index < (sizeof(modern_icons) / sizeof(modern_icons[0]) - 1) && modern_icons[standard_icon_index] != NULL)
-				{
-					toolbaricon[GPOINTER_TO_INT(data)] = strdup(modern_icons[standard_icon_index]);
-				}
+				gtk_tree_model_get(model, &iter, 1, &text, -1);
+				toolbaricon[GPOINTER_TO_INT(data)] = strdup(text);
+				g_free(text);
 			}
 		}
 
@@ -2952,16 +2770,9 @@ void show_dialog_custom_toolbar(GtkWidget *widget, gpointer data)
 		respawn = 1;
 		yixin_quit();
 	}
-	case 2:
+	case GTK_RESPONSE_REJECT:
 		break;
 	}
-
-	// 释放自定义图标文件名内存
-	for (i = 0; i < custom_icon_count; i++)
-	{
-		free(custom_icon_files[i]);
-	}
-	free(custom_icon_files);
 
 	gtk_widget_destroy(dialog);
 }
@@ -3214,7 +3025,10 @@ void use_database(GtkWidget *widget, gpointer data)
 	if (usedatabase)
 		show_database();
 	else
+	{
 		refresh_board();
+		gtk_window_set_title(GTK_WINDOW(windowmain), "Yixin");
+	}
 	if (usedatabase && showlog)
 		gtk_widget_show(scrolledtextdbcomment);
 	else
@@ -4261,7 +4075,7 @@ void execute_command(gchar *command)
 		{
 			toolbarnum++;
 			toolbarlng[toolbarnum - 1] = 92;
-			toolbaricon[toolbarnum - 1] = strdup("gtk-about");
+			toolbaricon[toolbarnum - 1] = strdup("dialog-question");
 			strcpy(toolbarcommand[toolbarnum - 1], "\n");
 			show_dialog_custom_toolbar(NULL, GINT_TO_POINTER(toolbarnum - 1));
 		}
@@ -5162,15 +4976,12 @@ void save_setting()
 		fprintf(out, "%d\t;show warning (0: no, 1: yes)\n", showwarning);
 		fprintf(out, "%d\t;block autoreset (0: no, 1: yes)\n", blockautoreset);
 		fprintf(out, "%d\t;number of threads\n", threadnum);
-		fprintf(out, "%d\t;hash size\n", hashsize);
-		fprintf(out, "%d\t;split depth\n", threadsplitdepth);
+		fprintf(out, "%d\t;hash size (MB)\n", hashsizemb);
 		fprintf(out, "%d\t;blockpath autoreset (0: no, 1: yes)\n", blockpathautoreset);
 		fprintf(out, "%d\t;pondering (0: off, 1: on)\n", infopondering);
 		fprintf(out, "%d\t;checkmate in global search (0: no, 1: vct, 2: vc2)\n", infovcthread);
 		fprintf(out, "%d\t;hash autoclear (0: no, 1: yes)\n", hashautoclear);
-		fprintf(out, "%d\t;toolbar postion (0: left vertical, 1: right vertical)\n", toolbarpos);
-		fprintf(out, "%d\t;toolbar item number (<=64)\n", toolbarnum);
-		fprintf(out, "%d\t;hotkey number (<=64)\n", hotkeynum);
+		fprintf(out, "%d\t;toolbar postion (0: left vertical, 1: right horizontal)\n", toolbarpos);
 		fprintf(out, "%d\t;show clock (0: no, 1: yes)\n", showclock);
 		fprintf(out, "%d\t;time increment per move\n", increment);
 		fprintf(out, "%d\t;show forbidden moves\n", showforbidden);
@@ -5180,14 +4991,13 @@ void save_setting()
 		fprintf(out, "%d\t;show database baord texts (0: no, 1: yes)\n", showboardtext);
 		fprintf(out, "%d\t;show database delall confirmation (0: no, 1: yes)\n", showdbdelconfirm);
 		fprintf(out, "%d\t;record debug log\n", recorddebuglog);
-		fprintf(out, "%d\t;hdpi scale\n", (int)(hdpiscale * 100 + 1e-10));
+		fprintf(out, "%d\t;log area horizontal scale\n", (int)(hdpiscale * 100 + 1e-10));
 		fprintf(out, "%d\t;symmetric nbest for the 5th moves\n", nbestsym);
 		fprintf(out, "%d\t;lossing move color saturation (0~100)\n", losssaturation);
 		fprintf(out, "%d\t;winning move color saturation (0~100)\n", winsaturation);
 		fprintf(out, "%d\t;min winrate color saturation (0~100)\n", minsaturation);
 		fprintf(out, "%d\t;max winrate color saturation (0~100)\n", maxsaturation);
 		fprintf(out, "%d\t;value of color (0~100)\n", colorvalue);
-		fprintf(out, "%d\t;board font base size (1~20)\n", fontbasesize);
 		fclose(out);
 	}
 	for (i = 0; i < toolbarnum; i++)
@@ -5567,11 +5377,9 @@ void create_windowclock()
 gboolean create_menu_proxy(GtkToolItem *tool_item, gpointer user_data)
 {
 	int i = GPOINTER_TO_INT(user_data);
-	// 创建带图标的溢出菜单项
 	GtkWidget *menu_item = gtk_menu_item_new();
-	GtkWidget *menu_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2); // 减少间距到2像素
+	GtkWidget *menu_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
 
-	// 设置菜单项的CSS样式来减少内边距
 	GtkStyleContext *context = gtk_widget_get_style_context(menu_item);
 	GtkCssProvider *provider = gtk_css_provider_new();
 	gtk_css_provider_load_from_data(provider,
@@ -5581,40 +5389,12 @@ gboolean create_menu_proxy(GtkToolItem *tool_item, gpointer user_data)
 								   GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 	g_object_unref(provider);
 
-	GtkWidget *menu_image = NULL;
+	GtkWidget *menu_image = gtk_image_new_from_icon_name(toolbaricon[i] ? toolbaricon[i] : "image-missing", GTK_ICON_SIZE_MENU);
 	GtkWidget *menu_label = gtk_label_new(_T(clanguage[toolbarlng[i]]));
 
-	// 创建菜单图标 - 复用工具栏图标的逻辑
-	if (toolbaricon[i] && g_file_test(toolbaricon[i], G_FILE_TEST_EXISTS))
-	{
-		// 这是一个文件路径
-		GdkPixbuf *original_pixbuf = gdk_pixbuf_new_from_file(toolbaricon[i], NULL);
-		if (original_pixbuf)
-		{
-			// 缩放到菜单合适的大小（16x16像素）
-			GdkPixbuf *scaled_pixbuf = gdk_pixbuf_scale_simple(original_pixbuf, 16, 16, GDK_INTERP_BILINEAR);
-			menu_image = gtk_image_new_from_pixbuf(scaled_pixbuf);
-			g_object_unref(original_pixbuf);
-			g_object_unref(scaled_pixbuf);
-		}
-	}
-	else if (toolbaricon[i])
-	{
-		// 这是一个图标名称，使用图标主题
-		menu_image = gtk_image_new_from_icon_name(toolbaricon[i], GTK_ICON_SIZE_MENU);
-	}
-
-	// 如果没有图标，创建一个占位符
-	if (!menu_image)
-	{
-		menu_image = gtk_image_new_from_icon_name("image-missing", GTK_ICON_SIZE_MENU);
-	}
-
-	// 将图标和标签添加到盒子中
 	gtk_box_pack_start(GTK_BOX(menu_box), menu_image, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(menu_box), menu_label, TRUE, TRUE, 0);
 
-	// 将盒子添加到菜单项中
 	gtk_container_add(GTK_CONTAINER(menu_item), menu_box);
 	gtk_widget_show_all(menu_item);
 
@@ -6152,45 +5932,19 @@ void create_windowmain()
 	for (i = 0; i < toolbarnum; ++i)
 	{
 		GtkToolItem *tool_btn = gtk_tool_button_new(NULL, NULL);
-
-		// 检查是否是文件路径还是图标名称
-		if (strstr(toolbaricon[i], "/") != NULL || strstr(toolbaricon[i], "\\") != NULL || strstr(toolbaricon[i], ".ico") != NULL)
-		{
-			// 这是一个文件路径，使用文件图标
-			GdkPixbuf *original_pixbuf = gdk_pixbuf_new_from_file(toolbaricon[i], NULL);
-			if (original_pixbuf)
-			{
-				// 获取toolbar图标的标准大小
-				gint icon_size;
-				gtk_icon_size_lookup(GTK_ICON_SIZE_LARGE_TOOLBAR, &icon_size, NULL);
-
-				// 缩放自定义图标到标准大小
-				GdkPixbuf *scaled_pixbuf = gdk_pixbuf_scale_simple(original_pixbuf, icon_size, icon_size, GDK_INTERP_BILINEAR);
-				GtkWidget *image = gtk_image_new_from_pixbuf(scaled_pixbuf);
-				gtk_tool_button_set_icon_widget(GTK_TOOL_BUTTON(tool_btn), image);
-				g_object_unref(original_pixbuf);
-				g_object_unref(scaled_pixbuf);
-			}
-			else
-			{
-				// 如果文件加载失败，使用默认图标
-				gtk_tool_button_set_icon_name(GTK_TOOL_BUTTON(tool_btn), "image-missing");
-			}
-		}
-		else
-		{
-			// 这是一个图标名称，使用图标主题
-			gtk_tool_button_set_icon_name(GTK_TOOL_BUTTON(tool_btn), toolbaricon[i]);
-		}
-
+		gtk_tool_button_set_icon_name(GTK_TOOL_BUTTON(tool_btn), toolbaricon[i]);
 		gtk_tool_button_set_label(GTK_TOOL_BUTTON(tool_btn), _T(clanguage[toolbarlng[i]]));
 		g_signal_connect(G_OBJECT(tool_btn), "clicked", G_CALLBACK(toolbar_function), GINT_TO_POINTER(i));
-
-		// Connect signal to create menu proxy
 		g_signal_connect(G_OBJECT(tool_btn), "create-menu-proxy", G_CALLBACK(create_menu_proxy), GINT_TO_POINTER(i));
-
 		gtk_toolbar_insert(GTK_TOOLBAR(toolbar), tool_btn, -1);
 	}
+
+	PangoFontDescription *boardtextfontdesc = pango_font_description_from_string(fontname[0]);
+	GtkCssProvider *css_providerboardtext = gtk_css_provider_new();
+	font_familyboardtext = pango_font_description_get_family(boardtextfontdesc);
+	font_sizeboardtext = pango_font_description_get_size(boardtextfontdesc) / PANGO_SCALE;
+	if (font_sizeboardtext == 0)
+		font_sizeboardtext = 10;
 
 	textdbcomment = gtk_text_view_new();
 	buffertextdbcomment = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textdbcomment));
@@ -6198,16 +5952,15 @@ void create_windowmain()
 	gtk_container_add(GTK_CONTAINER(scrolledtextdbcomment), textdbcomment);
 	gtk_widget_set_size_request(scrolledtextdbcomment, (int)(hdpiscale * 400), (int)(hdpiscale * 100));
 	PangoFontDescription *dbcommentfontdesc = pango_font_description_from_string(fontname[2]);
-	// 使用CSS provider设置字体（GTK3推荐方式）
-	GtkCssProvider *css_provider = gtk_css_provider_new();
-	const char *font_family = pango_font_description_get_family(dbcommentfontdesc);
-	int font_size = pango_font_description_get_size(dbcommentfontdesc) / PANGO_SCALE;
+	GtkCssProvider *css_providerdbcomment = gtk_css_provider_new();
+	const char *font_familydbcomment = pango_font_description_get_family(dbcommentfontdesc);
+	int font_sizedbcomment = pango_font_description_get_size(dbcommentfontdesc) / PANGO_SCALE;
 	gchar *css_data = g_strdup_printf("textview { font-family: '%s'; font-size: %dpt; }",
-									  font_family ? font_family : "Sans", font_size > 0 ? font_size : 10);
-	gtk_css_provider_load_from_data(css_provider, css_data, -1, NULL);
+									  font_familydbcomment ? font_familydbcomment : "Sans", font_sizedbcomment > 0 ? font_sizedbcomment : 10);
+	gtk_css_provider_load_from_data(css_providerdbcomment, css_data, -1, NULL);
 	gtk_style_context_add_provider(gtk_widget_get_style_context(textdbcomment),
-								   GTK_STYLE_PROVIDER(css_provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-	g_object_unref(css_provider);
+								   GTK_STYLE_PROVIDER(css_providerdbcomment), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+	g_object_unref(css_providerdbcomment);
 	g_free(css_data);
 	pango_font_description_free(dbcommentfontdesc);
 	g_signal_connect(buffertextdbcomment, "end-user-action", G_CALLBACK(dbcomment_changed), NULL);
@@ -6215,19 +5968,18 @@ void create_windowmain()
 		gtk_text_view_set_editable(GTK_TEXT_VIEW(textdbcomment), 0);
 
 	textlog = gtk_text_view_new();
-	PangoFontDescription *fontDesc = pango_font_description_from_string(fontname[1]);
-	// 使用CSS provider设置字体（GTK3推荐方式）
-	GtkCssProvider *css_provider2 = gtk_css_provider_new();
-	const char *font_family2 = pango_font_description_get_family(fontDesc);
-	int font_size2 = pango_font_description_get_size(fontDesc) / PANGO_SCALE;
+	PangoFontDescription *logfontdesc = pango_font_description_from_string(fontname[1]);
+	GtkCssProvider *css_providerlog = gtk_css_provider_new();
+	const char *font_familylog = pango_font_description_get_family(logfontdesc);
+	int font_sizelog = pango_font_description_get_size(logfontdesc) / PANGO_SCALE;
 	gchar *css_data2 = g_strdup_printf("textview { font-family: '%s'; font-size: %dpt; }",
-									   font_family2 ? font_family2 : "Sans", font_size2 > 0 ? font_size2 : 10);
-	gtk_css_provider_load_from_data(css_provider2, css_data2, -1, NULL);
+									   font_familylog ? font_familylog : "Sans", font_sizelog > 0 ? font_sizelog : 10);
+	gtk_css_provider_load_from_data(css_providerlog, css_data2, -1, NULL);
 	gtk_style_context_add_provider(gtk_widget_get_style_context(textlog),
-								   GTK_STYLE_PROVIDER(css_provider2), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-	g_object_unref(css_provider2);
+								   GTK_STYLE_PROVIDER(css_providerlog), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+	g_object_unref(css_providerlog);
 	g_free(css_data2);
-	pango_font_description_free(fontDesc);
+	pango_font_description_free(logfontdesc);
 	gtk_text_view_set_editable(textlog, 0);
 
 	buffertextlog = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textlog));
@@ -6250,16 +6002,15 @@ void create_windowmain()
 	gtk_widget_set_size_request(scrolledtextpos, (int)(hdpiscale * 400), (int)(hdpiscale * 50));
 	gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(textpos), GTK_WRAP_CHAR);
 	PangoFontDescription *posfontdesc = pango_font_description_from_string(fontname[3]);
-	// 使用CSS provider设置字体（GTK3推荐方式）
-	GtkCssProvider *css_provider3 = gtk_css_provider_new();
-	const char *font_family3 = pango_font_description_get_family(posfontdesc);
-	int font_size3 = pango_font_description_get_size(posfontdesc) / PANGO_SCALE;
+	GtkCssProvider *css_providerpos = gtk_css_provider_new();
+	const char *font_familypos = pango_font_description_get_family(posfontdesc);
+	int font_sizepos = pango_font_description_get_size(posfontdesc) / PANGO_SCALE;
 	gchar *css_data3 = g_strdup_printf("textview { font-family: '%s'; font-size: %dpt; }",
-									   font_family3 ? font_family3 : "Sans", font_size3 > 0 ? font_size3 : 10);
-	gtk_css_provider_load_from_data(css_provider3, css_data3, -1, NULL);
+									   font_familypos ? font_familypos : "Sans", font_sizepos > 0 ? font_sizepos : 10);
+	gtk_css_provider_load_from_data(css_providerpos, css_data3, -1, NULL);
 	gtk_style_context_add_provider(gtk_widget_get_style_context(textpos),
-								   GTK_STYLE_PROVIDER(css_provider3), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-	g_object_unref(css_provider3);
+								   GTK_STYLE_PROVIDER(css_providerpos), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+	g_object_unref(css_providerpos);
 	g_free(css_data3);
 	pango_font_description_free(posfontdesc);
 	g_signal_connect(buffertextpos, "end-user-action", G_CALLBACK(textpos_changed), NULL);
@@ -6280,9 +6031,13 @@ void create_windowmain()
 	if (toolbarpos == 1)
 	{
 		g_object_set(toolbar, "orientation", GTK_ORIENTATION_HORIZONTAL, NULL);
+		GtkWidget *toolbar_scrolled = gtk_scrolled_window_new(NULL, NULL);
+		gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(toolbar_scrolled),
+									   GTK_POLICY_AUTOMATIC, GTK_POLICY_NEVER);
 		int max_toolbar_width = (int)(hdpiscale * 400);
-		gtk_widget_set_size_request(toolbar, max_toolbar_width, -1);
-		gtk_box_pack_start(GTK_BOX(vbox[0]), toolbar, FALSE, FALSE, 3);
+		gtk_widget_set_size_request(toolbar_scrolled, max_toolbar_width, -1);
+		gtk_container_add(GTK_CONTAINER(toolbar_scrolled), toolbar);
+		gtk_box_pack_start(GTK_BOX(vbox[0]), toolbar_scrolled, FALSE, FALSE, 3);
 	}
 	gtk_box_pack_start(GTK_BOX(vbox[0]), posbar, FALSE, FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(vbox[0]), scrolledtextdbcomment, FALSE, FALSE, 3);
@@ -6659,7 +6414,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 				gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffertextdbcomment), &start, &end);
 				gtk_text_buffer_delete(buffertextdbcomment, &start, &end);
 
-				char *text_utf8 = _T(rawstring + 16 + 1 + 5), *t = text_utf8;
+				char *text_utf8 = _T(rawp + 5), *t = text_utf8;
 				if (*t == '"')
 				{
 					++t;
@@ -6694,24 +6449,48 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 				}
 				g_free(text_utf8);
 			}
+			else if (*p == 'L') //"LOAD"
+			{
+				p += 5;
+				if (strncmp(p, "START", 5) == 0)
+				{
+					char *filename = _T(rawp + 11);
+					char *title = g_strdup_printf("Yixin (%.*s)", (int)strcspn(filename, "\n") - 1, filename);
+					gtk_window_set_title(GTK_WINDOW(windowmain), title);
+					g_free(title);
+					if (loadingdialog == NULL)
+					{
+						loadingdialog = gtk_message_dialog_new(GTK_WINDOW(windowmain), GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_INFO,
+															   GTK_BUTTONS_NONE, "%s %s ......", language == 0 ? "Loading database from" : _T(clanguage[120]), _T(rawp + 11));
+						gtk_window_set_deletable(GTK_WINDOW(loadingdialog), FALSE);
+						gtk_widget_show(GTK_DIALOG(loadingdialog));
+					}
+				}
+				else if (strncmp(p, "DONE", 4) == 0)
+				{
+					if (loadingdialog)
+					{
+						gtk_widget_destroy(loadingdialog);
+						loadingdialog = NULL;
+					}
+				}
+			}
 			else if (*p == 'S') //"SAVE"
 			{
 				p += 5;
 				if (strncmp(p, "START", 5) == 0)
 				{
-					gtk_window_set_title(GTK_WINDOW(windowmain), "Yixin (Saving...)");
 					gtk_window_set_deletable(GTK_WINDOW(windowmain), FALSE);
 					if (savingdialog == NULL)
 					{
 						savingdialog = gtk_message_dialog_new(GTK_WINDOW(windowmain), GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_INFO,
-															  GTK_BUTTONS_NONE, "%s %s ......", language == 0 ? "Saving database to" : _T(clanguage[115]), p + 6);
+															  GTK_BUTTONS_NONE, "%s %s ......", language == 0 ? "Saving database to" : _T(clanguage[115]), _T(rawp + 11));
 						gtk_window_set_deletable(GTK_WINDOW(savingdialog), FALSE);
 						gtk_widget_show(GTK_DIALOG(savingdialog));
 					}
 				}
 				else if (strncmp(p, "DONE", 4) == 0)
 				{
-					gtk_window_set_title(GTK_WINDOW(windowmain), "Yixin");
 					gtk_window_set_deletable(GTK_WINDOW(windowmain), TRUE);
 					if (savingdialog)
 					{
@@ -6798,7 +6577,9 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
 			else if (strncmp(p, "MAX_HASH_SIZE", 13) == 0) // MAX_HASH_SIZE
 			{
 				p += 14;
+				int maxhashsize;
 				sscanf(p, "%d", &maxhashsize);
+				maxhashsizemb = maxhashsize <= 10 ? 1 : (1 << (maxhashsize - 10));
 			}
 		}
 		else if (strncmp(string, "MESSAGE", 7) == 0)
@@ -7060,12 +6841,9 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 		threadnum = read_int_from_file(in);
 		if (threadnum < 1 /*|| threadnum > maxthreadnum*/)
 			threadnum = 1;
-		hashsize = read_int_from_file(in);
-		if (hashsize < 0 /*|| hashsize > maxhashsize*/)
-			hashsize = 19;
-		threadsplitdepth = read_int_from_file(in);
-		if (threadsplitdepth < MIN_SPLIT_DEPTH || threadsplitdepth > MAX_SPLIT_DEPTH)
-			threadsplitdepth = 8;
+		hashsizemb = read_int_from_file(in);
+		if (hashsizemb < 0 /*|| hashsizemb > maxhashsizemb*/)
+			hashsizemb = 256;
 		blockpathautoreset = read_int_from_file(in);
 		if (blockpathautoreset < 0 || blockpathautoreset > 1)
 			blockpathautoreset = 0;
@@ -7081,12 +6859,6 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 		toolbarpos = read_int_from_file(in);
 		if (toolbarpos < 0 || toolbarpos > 1)
 			toolbarpos = 1;
-		toolbarnum = read_int_from_file(in);
-		if (toolbarnum < 0 || toolbarnum > MAX_TOOLBAR_ITEM)
-			toolbarnum = 6;
-		hotkeynum = read_int_from_file(in);
-		if (hotkeynum < 0 || hotkeynum > MAX_HOTKEY_ITEM)
-			hotkeynum = 6;
 		showclock = read_int_from_file(in);
 		if (showclock < 0 || showclock > 1)
 			showclock = 1;
@@ -7135,12 +6907,9 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 		colorvalue = read_int_from_file(in);
 		if (colorvalue < 0 || colorvalue > 100)
 			colorvalue = 100;
-		fontbasesize = read_int_from_file(in);
-		if (fontbasesize < 1 || fontbasesize > 20)
-			fontbasesize = 10;
 		fclose(in);
 	}
-	for (i = 0; i < toolbarnum; i++)
+	for (i = 0; i < MAX_TOOLBAR_ITEM; i++)
 	{
 		sprintf(s, "function/toolbar%d.txt", i + 1);
 		if ((in = fopen(s, "r")) != NULL)
@@ -7168,7 +6937,7 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 			break;
 		}
 	}
-	for (i = 0; i < hotkeynum; i++)
+	for (i = 0; i < MAX_HOTKEY_ITEM; i++)
 	{
 		sprintf(s, "function/hotkey%d.txt", i + 1);
 		if ((in = fopen(s, "r")) != NULL)
@@ -7193,23 +6962,7 @@ void load_setting(int def_boardsizeh, int def_boardsizew, int def_language, int 
 			break;
 		}
 	}
-	// 加载自定义图标（如果存在icon文件夹）
-	for (i = 0;; i++)
-	{
-		GdkPixbuf *pixbuf;
-		sprintf(s, "icon/yixin%d.ico", i + 1);
-		if ((pixbuf = gdk_pixbuf_new_from_file(s, NULL)) == NULL)
-			break;
 
-		// 将自定义图标添加到图标主题（现代方式）
-		GtkIconTheme *icon_theme = gtk_icon_theme_get_default();
-		char icon_name[50];
-		sprintf(icon_name, "yixin-custom-%d", i + 1);
-
-		// 由于GTK3中图标工厂已弃用，这里我们跳过注册自定义图标
-		// 自定义图标可以通过其他方式加载
-		g_object_unref(G_OBJECT(pixbuf));
-	}
 	sprintf(s, "piece_%d.bmp", max(boardsizeh, boardsizew));
 	if ((in = fopen(s, "rb")) != NULL)
 	{
@@ -7355,7 +7108,7 @@ void init_engine()
 	set_level(levelchoice);
 	set_cautionfactor(cautionfactor);
 	set_threadnum(threadnum);
-	set_hashsize(hashsize);
+	set_hashsize(hashsizemb);
 	set_pondering(infopondering);
 	setvcthread(infovcthread);
 }

@@ -1,8 +1,8 @@
-316
+315
 view-refresh
 
 command on
-reloadconfig config_mix9lite.toml
+reloadconfig config.toml
 command off
 dbrefresh
 

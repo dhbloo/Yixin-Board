@@ -37,7 +37,7 @@
 38=Cautious
 39=Number of Threads
 40=Split Depth
-41=Hash Size
+41=Hash Size (MB)
 42=Board Height (10 ~ 22):
 43=Board Width (10 ~ 22):
 44=Play
@@ -84,7 +84,7 @@
 87=None
 88=Check VC2
 89=Icon:
-90=Text:
+90=Text Index:
 91=Command:
 92=New Item
 93=Hotkey:
@@ -111,6 +111,10 @@
 114=Input Board text:
 115=Saving database to
 116=Are your sure to delete all branches?
+117=OK
+118=Cancel
+119=Toolbar Edit
+120=Loading database from
 
 
 201=VCT

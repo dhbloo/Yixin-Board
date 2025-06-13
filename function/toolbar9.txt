@@ -1,8 +1,5 @@
-301
-edit-clear
+204
+document-save
 
-command on
-yxhashclear
-command off
-clear
+dbsave
 

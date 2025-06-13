@@ -1,8 +1,5 @@
 44
-system-run
+media-playback-start
 
-command on
-info strength 100
-command off
 thinking start
 

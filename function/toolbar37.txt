@@ -1,9 +1,0 @@
-300
-format-text-bold
-
-send board
-command on
-traceboard
-tracesearch
-command off
-

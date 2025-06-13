@@ -1,8 +1,5 @@
 203
-icon/yixin4.ico
+security-low
 
-command on
-info strength 100
-command off
 searchdefend
 

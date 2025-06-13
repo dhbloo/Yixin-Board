@@ -1,5 +1,5 @@
-318
+319
 edit-delete
 
-dbdel all nonwl
+dbdel all wl
 

@@ -1,8 +1,8 @@
-303
-system-run
+301
+edit-clear
 
 command on
-info strength 60
+yxhashclear
 command off
-thinking start
+clear
 
