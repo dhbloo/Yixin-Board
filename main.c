@@ -6858,6 +6858,25 @@ void init_engine()
     set_vcthread(infovcthread);
 }
 
+#ifdef __APPLE__
+    #include <libgen.h>
+    #include <libproc.h>
+
+void set_cwd_to_executable_dir()
+{
+    char exe_path[PROC_PIDPATHINFO_MAXSIZE];
+    proc_pidpath(getpid(), exe_path, sizeof(exe_path));
+
+    // Copy because dirname() may modify the string
+    char exe_dir[PROC_PIDPATHINFO_MAXSIZE];
+    strncpy(exe_dir, exe_path, sizeof(exe_dir));
+    exe_dir[sizeof(exe_dir) - 1] = '\0';  // Ensure null-terminated
+
+    char *dir = dirname(exe_dir);
+    chdir(dir);
+}
+#endif
+
 int main(int argc, char **argv)
 {
     static GOptionEntry options[] = {
@@ -6881,6 +6900,7 @@ int main(int argc, char **argv)
                                             sel_registerName("sharedApplication"));
     ((void (*)(id, SEL, bool))objc_msgSend)(app, sel_registerName("setActivationPolicy:"), 0);
     ((void (*)(id, SEL))objc_msgSend)(app, sel_registerName("activateIgnoringOtherApps:"));
+    set_cwd_to_executable_dir();
 #endif
 
     gtk_init_with_args(&argc, &argv, NULL, options, NULL, &error);
@@ -6895,7 +6915,6 @@ int main(int argc, char **argv)
     create_windowmain();
     show_welcome();
     show_database();
-    printf_log("Current locale: %s\n", setlocale(LC_ALL, NULL));
     gtk_main();
     return 0;
 }

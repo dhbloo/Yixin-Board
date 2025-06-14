@@ -51,7 +51,7 @@ build-macos: main.c yixin.h
 			<key>CFBundleInfoDictionaryVersion</key>\
 			<string>6.0</string>\
 			<key>CFBundleName</key>\
-			<string>Yixin</string>\
+			<string>Rapfi-Yixin</string>\
 			<key>CFBundlePackageType</key>\
 			<string>APPL</string>\
 			<key>CFBundleVersion</key>\
