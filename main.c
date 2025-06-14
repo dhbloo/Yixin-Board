@@ -1302,6 +1302,8 @@ void show_dialog_boardtext(GtkWidget *window, int x, int y)
                                          NULL);
     gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
     gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+    gtk_container_set_border_width(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
+                                   10);
 
     table = gtk_grid_new();
     gtk_grid_set_row_spacing(GTK_GRID(table), 0);
@@ -1807,6 +1809,8 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
                                          NULL);
     gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
     gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+    gtk_container_set_border_width(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
+                                   20);
 
     notebook = gtk_notebook_new();
     gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
@@ -2802,6 +2806,8 @@ void show_dialog_about(GtkWidget *widget, gpointer data)
                                          NULL);
     gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
     gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+    gtk_container_set_border_width(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
+                                   20);
 
     pixbuf = gdk_pixbuf_new_from_file("icon.ico", NULL);
 
@@ -2809,10 +2815,8 @@ void show_dialog_about(GtkWidget *widget, gpointer data)
     g_object_unref(pixbuf);
     pixbuf = NULL;
     name   = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(name), "<big><b>Yixin Board</b></big>");
-    version = gtk_label_new("Version " VERSION);
-    author  = gtk_label_new("(C)2009-2017 Kai Sun");
-    www     = gtk_label_new("www.aiexp.info");
+    gtk_label_set_markup(GTK_LABEL(name), "<big><b>Rapfi-Yixin Board</b></big>");
+
     gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
                        icon,
                        FALSE,
@@ -2824,20 +2828,31 @@ void show_dialog_about(GtkWidget *widget, gpointer data)
                        FALSE,
                        3);
     gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
-                       version,
+                       gtk_label_new("Version " VERSION),
                        FALSE,
                        FALSE,
                        3);
     gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
-                       author,
+                       gtk_label_new("(C)2009-2017 Kai Sun"),
                        FALSE,
                        FALSE,
                        3);
     gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
-                       www,
+                       gtk_label_new("www.aiexp.info"),
+                       FALSE,
+                       FALSE,
+                       5);
+
+    gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
+                       gtk_label_new("This version is specifically adapted for Rapfi"),
                        FALSE,
                        FALSE,
                        10);
+    gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
+                       gtk_label_new("Visit https://github.com/dhbloo/rapfi"),
+                       FALSE,
+                       FALSE,
+                       3);
 
     gtk_widget_show_all(dialog);
     gtk_dialog_run(GTK_DIALOG(dialog));
@@ -6862,8 +6877,8 @@ int main(int argc, char **argv)
 
 #ifdef __APPLE__
     // Initialize NSApplication on macOS to prevent terminal window
-    id app = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"),
-                                             sel_registerName("sharedApplication"));
+    id app = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"),
+                                            sel_registerName("sharedApplication"));
     ((void (*)(id, SEL, bool))objc_msgSend)(app, sel_registerName("setActivationPolicy:"), 0);
     ((void (*)(id, SEL))objc_msgSend)(app, sel_registerName("activateIgnoringOtherApps:"));
 #endif
