@@ -132,7 +132,7 @@ int64_t    timerhumanturn;
 int64_t    timerhumanmatch;
 int        timercomputerincrement;
 int        timerhumanincrement;
-int        timerstart;
+int64_t    timerstart;
 int        timerstatus = 0;
 int        timeoutflag = 0;
 
@@ -1738,7 +1738,7 @@ void set_pondering(int x)
     send_command(command);
 }
 
-void setvcthread(int x)
+void set_vcthread(int x)
 {
     gchar command[80];
     if (x < 0)
@@ -1926,7 +1926,6 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
     gtk_grid_set_row_spacing(GTK_GRID(tablesetting), 0);
     gtk_grid_set_column_spacing(GTK_GRID(tablesetting), 0);
 
-    // 第0行
     gtk_grid_attach(GTK_GRID(tablesetting), labelblank[0], 0, 0, 1, 1);
     gtk_grid_attach(GTK_GRID(tablesetting), labeltimeturn[0], 1, 0, 1, 1);
     gtk_grid_attach(GTK_GRID(tablesetting), entrytimeturn, 2, 0, 1, 1);
@@ -1937,7 +1936,6 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
     gtk_grid_attach(GTK_GRID(tablesetting), labeltimematch[1], 7, 0, 1, 1);
     gtk_grid_attach(GTK_GRID(tablesetting), labelblank[2], 8, 0, 1, 1);
 
-    // 第1行
     gtk_grid_attach(GTK_GRID(tablesetting), labelblank[3], 0, 1, 1, 1);
     gtk_grid_attach(GTK_GRID(tablesetting), labelincrement[0], 1, 1, 1, 1);
     gtk_grid_attach(GTK_GRID(tablesetting), entryincrement, 2, 1, 1, 1);
@@ -1948,7 +1946,6 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
     gtk_grid_attach(GTK_GRID(tablesetting), labelmaxnode[1], 7, 1, 1, 1);
     gtk_grid_attach(GTK_GRID(tablesetting), labelblank[5], 8, 1, 1, 1);
 
-    // 第2行
     gtk_grid_attach(GTK_GRID(tablesetting), labelblank[6], 0, 2, 1, 1);
     gtk_grid_attach(GTK_GRID(tablesetting), labelmaxdepth[0], 1, 2, 1, 1);
     gtk_grid_attach(GTK_GRID(tablesetting), entrymaxdepth, 2, 2, 1, 1);
@@ -1981,7 +1978,6 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
     show_dialog_settings_custom_entry(NULL, (gpointer)hbox[11]);
 
     scalecaution = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0, CAUTION_NUM, 1);
-    // gtk_scale_set_value_pos(GTK_SCALE(scalecaution), GTK_POS_LEFT);
     gtk_range_set_value(GTK_RANGE(scalecaution), cautionfactor);
     gtk_widget_set_size_request(scalecaution, 100, -1);
 
@@ -2142,11 +2138,11 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
         set_pondering(gtk_toggle_button_get_active(hbox[5]) == TRUE ? 1 : 0);
 
         if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiovcthread[0])))
-            setvcthread(0);
+            set_vcthread(0);
         else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiovcthread[1])))
-            setvcthread(1);
+            set_vcthread(1);
         else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiovcthread[2])))
-            setvcthread(2);
+            set_vcthread(2);
         break;
     case GTK_RESPONSE_REJECT: break;
     }
@@ -4797,7 +4793,7 @@ void clock_label_refresh()
         }
     }
     sprintf(t,
-            " Left: %02d:%02d:%02d / %02d:%02d:%02d ",
+            " Left: %02d:%02d:%02d / %02d:%02d:%02d",
             h_turn,
             m_turn,
             s_turn,
@@ -4817,7 +4813,7 @@ void clock_label_refresh()
 
 gboolean clock_timer_update()
 {
-    int t;
+    int64_t elapsed;
     if (timerstatus == 0) {
         timerhumanmatch += timerhumanturn;
         timerhumanturn = 0;
@@ -4827,22 +4823,22 @@ gboolean clock_timer_update()
     else if (timerstatus == 1) {
         timerhumanmatch += timerhumanturn;
         timerhumanturn = 0;
-        t              = (clock() - timerstart) / (CLOCKS_PER_SEC / 1000);
-        if (t < timercomputerturn) {
+        elapsed        = (g_get_monotonic_time() - timerstart) / 1000;
+        if (elapsed < timercomputerturn) {
             timercomputermatch += timercomputerturn;
             timercomputerturn = 0;
         }
-        timercomputerturn = t;
+        timercomputerturn = elapsed;
     }
     else if (timerstatus == 2) {
         timercomputermatch += timercomputerturn;
         timercomputerturn = 0;
-        t                 = (clock() - timerstart) / (CLOCKS_PER_SEC / 1000);
-        if (t < timerhumanturn) {
+        elapsed           = (g_get_monotonic_time() - timerstart) / 1000;
+        if (elapsed < timerhumanturn) {
             timerhumanmatch += timerhumanturn;
             timerhumanturn = 0;
         }
-        timerhumanturn = t;
+        timerhumanturn = elapsed;
     }
     clock_label_refresh();
     return TRUE;
@@ -4864,17 +4860,17 @@ void clock_timer_change_status(int status)
     else if (status == 2 && !isthinking) {
         timerstatus = 2;
     }
-    timerstart = clock();
+    timerstart = g_get_monotonic_time();
 }
 
 void clock_timer_init()
 {
     if (isthinking) {
-        timerstart  = clock();
+        timerstart  = g_get_monotonic_time();
         timerstatus = 1;
     }
     else {
-        timerstart  = clock();
+        timerstart  = g_get_monotonic_time();
         timerstatus = 2;
     }
     timercomputermatch     = 0;
@@ -4955,6 +4951,7 @@ void create_windowclock()
     g_signal_connect(G_OBJECT(windowclock), "delete_event", G_CALLBACK(windowclock_delete), NULL);
     gtk_window_set_title(GTK_WINDOW(windowclock), "Clock");
     gtk_window_set_type_hint(GTK_WINDOW(windowclock), GDK_WINDOW_TYPE_HINT_DIALOG);
+    gtk_widget_set_size_request(windowclock, 260, 140);
 
     clocklabel[0] = gtk_label_new(" Used: 00:00:00 / 00:00:00 ");
     clocklabel[1] = gtk_label_new(" Used: 00:00:00 / 00:00:00 ");
@@ -4984,7 +4981,7 @@ void create_windowclock()
     gtk_container_add(GTK_CONTAINER(windowclock), vbox);
     clock_timer_init();
 
-    g_timeout_add(200, clock_timer_update, NULL);
+    g_timeout_add(500, clock_timer_update, NULL);
 
     if (showclock) {
         gtk_widget_show_all(windowclock);
@@ -6693,7 +6690,7 @@ void init_engine()
     set_threadnum(threadnum);
     set_hashsize(hashsizemb);
     set_pondering(infopondering);
-    setvcthread(infovcthread);
+    set_vcthread(infovcthread);
 }
 
 int main(int argc, char **argv)
