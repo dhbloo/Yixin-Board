@@ -272,103 +272,80 @@ char *__invT(char *s)
     return result ? result : "??";
 }
 
-static char *pending_text_buffer      = NULL;
-static int   pending_size_buffer      = 0;
-static int   pending_capacity_buffer  = 0;
-static guint batch_timeout_id_global  = 0;
-static guint scroll_timeout_id_global = 0;
-
-static gboolean delayed_scroll_handler(gpointer data)
-{
-    GtkTextIter  end;
-    GtkTextMark *endmark;
-
-    if (buffertextlog == NULL) {
-        scroll_timeout_id_global = 0;
-        return FALSE;
-    }
-
-    gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffertextlog), &end);
-    gtk_text_iter_set_line_offset(&end, 0);
-    endmark = gtk_text_buffer_get_mark(GTK_TEXT_BUFFER(buffertextlog), "scroll");
-    if (endmark) {
-        gtk_text_buffer_move_mark(GTK_TEXT_BUFFER(buffertextlog), endmark, &end);
-        gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(textlog), endmark);
-    }
-    scroll_timeout_id_global = 0;
-    return FALSE;
-}
+static char *pending_text_buffer     = NULL;
+static int   pending_size_buffer     = 0;
+static int   pending_capacity_buffer = 0;
+static guint batch_timeout_id_global = 0;
 
 static gboolean flush_pending_text_handler(gpointer data)
 {
-    if (pending_text_buffer && pending_size_buffer > 0) {
-        GtkTextIter start, end;
-        int         len;
+    static int   init = 0;
+    GtkTextIter  end;
+    GtkTextMark *scroll_mark;
 
-        if (buffertextlog == NULL) {
-            pending_size_buffer     = 0;
-            batch_timeout_id_global = 0;
-            return FALSE;
-        }
-
-        g_signal_handlers_block_by_func(buffertextlog, NULL, NULL);
-
-        len = gtk_text_buffer_get_line_count(GTK_TEXT_BUFFER(buffertextlog));
-        if (len > 800) {
-            gtk_text_buffer_get_iter_at_line(GTK_TEXT_BUFFER(buffertextlog), &start, 0);
-            gtk_text_buffer_get_iter_at_line(GTK_TEXT_BUFFER(buffertextlog), &end, len - 800);
-            gtk_text_buffer_delete(GTK_TEXT_BUFFER(buffertextlog), &start, &end);
-        }
-
-        gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffertextlog), &start, &end);
-        gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffertextlog),
-                               &end,
-                               pending_text_buffer,
-                               pending_size_buffer);
-
-        g_signal_handlers_unblock_by_func(buffertextlog, NULL, NULL);
-
-        pending_size_buffer = 0;
-
-        if (scroll_timeout_id_global == 0) {
-            scroll_timeout_id_global = g_timeout_add(50, delayed_scroll_handler, NULL);
-        }
-    }
     batch_timeout_id_global = 0;
+    if (!buffertextlog || !pending_text_buffer || pending_size_buffer <= 0)
+        return FALSE;
+
+    // Initialize the scroll mark if needed
+    if (init == 0) {
+        gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffertextlog), &end);
+        gtk_text_buffer_create_mark(GTK_TEXT_BUFFER(buffertextlog), "scroll", &end, TRUE);
+        init = 1;
+    }
+
+    g_signal_handlers_block_by_func(buffertextlog, NULL, NULL);
+
+    // Truncate if needed
+    int len = gtk_text_buffer_get_line_count(GTK_TEXT_BUFFER(buffertextlog));
+    if (len > 1600) {
+        GtkTextIter start;
+        gtk_text_buffer_get_iter_at_line(GTK_TEXT_BUFFER(buffertextlog), &start, 0);
+        gtk_text_buffer_get_iter_at_line(GTK_TEXT_BUFFER(buffertextlog), &end, len - 1600);
+        gtk_text_buffer_delete(GTK_TEXT_BUFFER(buffertextlog), &start, &end);
+    }
+
+    // Insert text at the end
+    gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffertextlog), &end);
+    gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffertextlog),
+                           &end,
+                           pending_text_buffer,
+                           pending_size_buffer);
+    pending_size_buffer = 0;
+
+    g_signal_handlers_unblock_by_func(buffertextlog, NULL, NULL);
+
+    // Update scroll mark and scroll to it
+    gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffertextlog), &end);
+    scroll_mark = gtk_text_buffer_get_mark(GTK_TEXT_BUFFER(buffertextlog), "scroll");
+    if (scroll_mark) {
+        gtk_text_buffer_move_mark(GTK_TEXT_BUFFER(buffertextlog), scroll_mark, &end);
+        gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(textlog), scroll_mark);
+    }
+
     return FALSE;
 }
 
 void print_log(char *text)
 {
-    static int init = 0;
-    static int flag = 0, fspace = 0;
+    static int init   = 0;
+    static int fspace = 0;
     int        i;
 
-    if (buffertextlog == NULL) {
-        printf("%s", text);
+    if (!buffertextlog)
         return;
-    }
 
     if (commandmode == 0) {
         if (strncmp(text, "OK", 2) == 0)
             text += 2;
         if (strncmp(text, "MESSAGE", 7) == 0)
             text += 7 + 1;
-        if (strncmp(text, "DETAIL", 6) == 0)
-            text += 6 + 1;
         if (strncmp(text, "DEBUG", 5) == 0)
             text += 5 + 1;
         if (strncmp(text, "ERROR", 5) == 0)
             text += 5;
         if (strncmp(text, "UNKNOWN", 7) == 0)
             text += 7;
-        // if(strncmp(text, "FORBID", 6) == 0) text += 6;
-        if (strncmp(text, "YIXIN", 5) == 0 || strncmp(text, "DEEP YIXIN", 10) == 0) {
-            if (flag == 0)
-                flag = 1;
-            else
-                return;
-        }
 
         for (i = 0; text[i]; i++) {
             if (!isspace(text[i]))
@@ -382,14 +359,6 @@ void print_log(char *text)
         }
         if (fspace >= 2)
             return;
-    }
-
-    if (init == 0) {
-        GtkTextIter end;
-        gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffertextlog), &end);
-        gtk_text_iter_set_line_offset(&end, 0);
-        init = 1;
-        gtk_text_buffer_create_mark(GTK_TEXT_BUFFER(buffertextlog), "scroll", &end, TRUE);
     }
 
     int text_len = strlen(text);
@@ -406,14 +375,6 @@ void print_log(char *text)
 
     if (batch_timeout_id_global == 0) {
         batch_timeout_id_global = g_timeout_add(10, flush_pending_text_handler, NULL);
-    }
-}
-
-void cleanup_log_pending_text()
-{
-    static int cleanup_called = 0;
-    if (!cleanup_called) {
-        cleanup_called = 1;
     }
 }
 
@@ -470,38 +431,19 @@ int printf_log(char *fmt, ...)
 
 void print_command(char *text)
 {
-    GtkTextIter start, end;
-
-    if (buffertextcommand == NULL) {
-        printf("%s", text);
+    if (!buffertextcommand)
         return;
-    }
 
-    gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffertextcommand), &start, &end);
+    GtkTextIter end;
+    gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffertextcommand), &end);
     gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffertextcommand), &end, text, strlen(text));
-}
-
-int printf_command(char *fmt, ...)
-{
-    int     cnt;
-    char    buffer[1024];
-    va_list va;
-    va_start(va, fmt);
-    cnt = vsprintf(buffer, fmt, va);
-    print_command(_T(buffer));
-    va_end(va);
-    return cnt;
 }
 
 void show_welcome()
 {
     printf_log("Yixin Board " VERSION "\n");
-    if (language) {
-        printf_command(clanguage[10]);
-    }
-    else {
-        printf_command("To get help, type help and press Enter here");
-    }
+    print_command(language == 0 ? "To get help, type help and press Enter here"
+                                : _T(clanguage[10]));
 }
 
 void show_thanklist()
@@ -3022,9 +2964,9 @@ void use_database(GtkWidget *widget, gpointer data)
         refresh_board();
         gtk_window_set_title(GTK_WINDOW(windowmain), "Yixin");
     }
-    if (usedatabase && showlog)
+    if (usedatabase && showlog && scrolledtextdbcomment)
         gtk_widget_show(scrolledtextdbcomment);
-    else
+    else if (scrolledtextdbcomment)
         gtk_widget_hide(scrolledtextdbcomment);
 }
 void set_database_readonly(GtkWidget *widget, gpointer data)
@@ -6374,6 +6316,7 @@ gboolean iochannelerr_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
     }
     return TRUE;
 }
+
 int64_t read_int_from_file(FILE *in)
 {
     int64_t num  = 0;
@@ -6655,6 +6598,7 @@ void load_setting(int def_boardsize, int def_language, int def_toolbar)
         language = 0;
     }
 }
+
 static void childexit_watch(GPid pid, gint status, gpointer *data)
 {
 #ifdef G_OS_WIN32
