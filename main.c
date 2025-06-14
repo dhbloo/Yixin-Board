@@ -6750,6 +6750,13 @@ void load_setting(int def_boardsize, int def_language, int def_toolbar)
         }
     }
 
+    if (darkmode) {
+        if ((in = fopen("piece_dark.bmp", "r")) != NULL) {
+            strcpy(piecepicname, "piece_dark.bmp");
+            fclose(in);
+        }
+    }
+
     clanguage = (char *)malloc(1024 * sizeof(char *));
     for (i = 0; i < 1024; i++)
         clanguage[i] = NULL;
