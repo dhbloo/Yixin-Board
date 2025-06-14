@@ -1,8 +1,8 @@
-315
+317
 view-refresh
 
 command on
-reloadconfig config.toml
+reloadconfig config_classical.toml
 command off
 dbrefresh
 

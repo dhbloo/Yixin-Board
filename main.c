@@ -54,6 +54,7 @@ int     computerside     = 0; /* 0 none 1 black 2 while 3 black&white */
 int     cautionfactor    = 1;
 int     threadnum        = 1;
 int     hashsizemb       = 256;
+int     defaultnumpv     = 3; /* default number of PVs */
 int     nbestsym         = 0;
 int     board[MAX_SIZE][MAX_SIZE];
 int     boardnumber[MAX_SIZE][MAX_SIZE];
@@ -1785,7 +1786,7 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
     GtkWidget   *labeltimeturn[2], *labeltimematch[2], *labelmaxdepth[2], *labelmaxnode[2],
         *labelincrement[2], *labelblank[9];
     GtkWidget *entrytimeturn, *entrytimematch, *entrymaxdepth, *entrymaxnode, *entryincrement;
-    GtkWidget *scalelevel, *scalecaution, *scalethreads, *scalehash;
+    GtkWidget *scalelevel, *scalecaution, *scalethreads, *scalehash, *scalenumpv;
     GtkWidget *tablesetting;
     gint       result;
 
@@ -1976,6 +1977,10 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
         gtk_adjustment_new(hashsizemb, 0, maxhashsizemb, 256, 256, 256);
     scalehash = gtk_spin_button_new(adjustment_hashsize, 1, 0);
 
+    GtkAdjustment *adjustment_numpv =
+        gtk_adjustment_new(defaultnumpv, 1, boardsize * boardsize, 1, 1, 1);
+    scalenumpv = gtk_spin_button_new(adjustment_numpv, 1, 0);
+
     radiovcthread[0] =
         gtk_radio_button_new_with_label(NULL, language == 0 ? "None" : _T(clanguage[87]));
     radiovcthread[1] = gtk_radio_button_new_with_label(
@@ -2018,7 +2023,7 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
     gtk_box_pack_start(GTK_BOX(notebookvbox[1]), hbox[7], FALSE, FALSE, 3);
     gtk_box_pack_start(GTK_BOX(notebookvbox[1]), hbox[1], FALSE, FALSE, 3);
 
-    hbox[2] = hbox[4] = NULL;
+    hbox[2] = NULL;
     if (maxthreadnum > 1) {
         hbox[2] = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
         gtk_box_pack_start(GTK_BOX(hbox[2]),
@@ -2037,6 +2042,14 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
                        3);
     gtk_box_pack_start(GTK_BOX(hbox[3]), scalehash, FALSE, FALSE, 3);
 
+    hbox[4] = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_box_pack_start(GTK_BOX(hbox[4]),
+                       gtk_label_new(language == 0 ? "Number of Multi-PV" : _T(clanguage[42])),
+                       FALSE,
+                       FALSE,
+                       3);
+    gtk_box_pack_start(GTK_BOX(hbox[4]), scalenumpv, FALSE, FALSE, 3);
+
     hbox[5] = gtk_check_button_new_with_label(language == 0 ? "Pondering" : _T(clanguage[85]));
     gtk_toggle_button_set_active(hbox[5], infopondering ? TRUE : FALSE);
 
@@ -2045,8 +2058,8 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
     gtk_box_pack_start(GTK_BOX(notebookvbox[2]), hbox[5], FALSE, FALSE, 3);
     gtk_box_pack_start(GTK_BOX(notebookvbox[2]), hbox[6], FALSE, FALSE, 3);
     gtk_box_pack_start(GTK_BOX(notebookvbox[2]), hbox[2], FALSE, FALSE, 3);
-    gtk_box_pack_start(GTK_BOX(notebookvbox[2]), hbox[4], FALSE, FALSE, 3);
     gtk_box_pack_start(GTK_BOX(notebookvbox[2]), hbox[3], FALSE, FALSE, 3);
+    gtk_box_pack_start(GTK_BOX(notebookvbox[2]), hbox[4], FALSE, FALSE, 3);
 
     gtk_widget_show_all(dialog);
 
@@ -2122,6 +2135,8 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
         set_threadnum((int)(gtk_spin_button_get_value(GTK_SPIN_BUTTON(scalethreads)) + 1e-8));
 
         set_hashsize((int)(gtk_spin_button_get_value(GTK_SPIN_BUTTON(scalehash)) + 1e-8));
+
+        defaultnumpv = (int)(gtk_spin_button_get_value(GTK_SPIN_BUTTON(scalenumpv)) + 1e-8);
 
         set_pondering(gtk_toggle_button_get_active(hbox[5]) == TRUE ? 1 : 0);
 
@@ -3923,20 +3938,24 @@ void execute_command(gchar *command)
         if (sscanf(command + 8, "%d", &s) != 1)
             s = 0;
         send_board(FALSE);
+        isthinking = true;
         sprintf(_command, "yxbalance%s %d\n", t == 1 ? "one" : "two", s);
         send_command(_command);
     }
     else if (yixin_strnicmp(command, "nbest", 5) == 0) {
         gchar _command[80];
-        int   s;
-        if (sscanf(command + 5, "%d", &s) != 1)
-            s = 2;
+        int   numpv = 1;
+        if (sscanf(command + 5, "%d", &numpv) != 1)
+            numpv = defaultnumpv;
+        else
+            numpv = numpv < 1 ? 1 : numpv;
         sprintf(_command, "info nbestsym %d\n", nbestsym);
         send_command(_command);
         send_board(FALSE);
         clear_board_tag();
         refresh_board();
-        sprintf(_command, "yxnbest %d\n", s);
+        isthinking = true;
+        sprintf(_command, "yxnbest %d\n", numpv);
         send_command(_command);
     }
     else if (yixin_strnicmp(command, "searchdefend", 9) == 0) {
@@ -3944,6 +3963,7 @@ void execute_command(gchar *command)
         send_board(FALSE);
         clear_board_tag();
         refresh_board();
+        isthinking = true;
         sprintf(_command, "yxsearchdefend\n");
         send_command(_command);
     }
@@ -4606,9 +4626,10 @@ void save_setting()
         fprintf(out, "%d\t;show analysis (0: no, 1: yes)\n", showanalysis);
         fprintf(out, "%d\t;show analysis winrate (0: no, 1: yes)\n", showanalysiswinrate);
         fprintf(out, "%d\t;show warning (0: no, 1: yes)\n", showwarning);
-        fprintf(out, "%d\t;block autoreset (0: no, 1: yes)\n", blockautoreset);
         fprintf(out, "%d\t;number of threads\n", threadnum);
         fprintf(out, "%d\t;hash size (MB)\n", hashsizemb);
+        fprintf(out, "%d\t;default number of multi-pv\n", defaultnumpv);
+        fprintf(out, "%d\t;block autoreset (0: no, 1: yes)\n", blockautoreset);
         fprintf(out, "%d\t;blockpath autoreset (0: no, 1: yes)\n", blockpathautoreset);
         fprintf(out, "%d\t;pondering (0: off, 1: on)\n", infopondering);
         fprintf(out, "%d\t;checkmate in global search (0: no, 1: vct, 2: vc2)\n", infovcthread);
@@ -6478,7 +6499,7 @@ void read_str_from_file(FILE *in, char *buf, int buf_len)
 {
     fgets(buf, buf_len, in);
     buf[strcspn(buf, "\r\n")] = 0;
-    char *semicolon         = strchr(buf, ';');
+    char *semicolon           = strchr(buf, ';');
     if (semicolon)
         *semicolon = '\0';
 }
@@ -6567,15 +6588,18 @@ void load_setting(int def_boardsize, int def_language, int def_toolbar)
         showwarning = read_int_from_file(in);
         if (showwarning < 0 || showwarning > 1)
             showwarning = 1;
-        blockautoreset = read_int_from_file(in);
-        if (blockautoreset < 0 || blockautoreset > 1)
-            blockautoreset = 0;
         threadnum = read_int_from_file(in);
         if (threadnum < 1 /*|| threadnum > maxthreadnum*/)
             threadnum = 1;
         hashsizemb = read_int_from_file(in);
         if (hashsizemb < 0 /*|| hashsizemb > maxhashsizemb*/)
             hashsizemb = 256;
+        defaultnumpv = read_int_from_file(in);
+        if (defaultnumpv < 1 || defaultnumpv > boardsize * boardsize)
+            defaultnumpv = 3;
+        blockautoreset = read_int_from_file(in);
+        if (blockautoreset < 0 || blockautoreset > 1)
+            blockautoreset = 0;
         blockpathautoreset = read_int_from_file(in);
         if (blockpathautoreset < 0 || blockpathautoreset > 1)
             blockpathautoreset = 0;
@@ -6840,14 +6864,14 @@ int main(int argc, char **argv)
 
 #ifdef __APPLE__
     // Initialize NSApplication on macOS to prevent terminal window
-    id app = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"),
-                                            sel_registerName("sharedApplication"));
+    id app = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"),
+                                             sel_registerName("sharedApplication"));
     ((void (*)(id, SEL, bool))objc_msgSend)(app, sel_registerName("setActivationPolicy:"), 0);
     ((void (*)(id, SEL))objc_msgSend)(app, sel_registerName("activateIgnoringOtherApps:"));
 #endif
 
     gtk_init_with_args(&argc, &argv, NULL, options, NULL, &error);
-    
+
     srand((unsigned)time(NULL));
     load_setting(boardsize, language, toolbar);
     load_engine();

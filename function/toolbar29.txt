@@ -1,5 +1,5 @@
-312
-list-add
+329
+edit-clear-all
 
-dbmerge
+dbdel all wlinstep recursive 30
 

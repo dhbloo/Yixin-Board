@@ -1,5 +1,5 @@
-320
+319
 edit-delete
 
-dbdel all w
+dbdel all wl
 

@@ -1,5 +1,5 @@
-329
+328
 edit-clear-all
 
-dbdel all wlinstep recursive 30
+dbdel all wlnostep recursive
 

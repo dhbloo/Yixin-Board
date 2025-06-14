@@ -1,9 +1,7 @@
-300
-utilities-terminal
+306
+system-run
 
-send board
 command on
-traceboard
-tracesearch
+bench
 command off
 

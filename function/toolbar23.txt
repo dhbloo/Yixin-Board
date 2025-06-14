@@ -1,5 +1,5 @@
-324
-edit-clear-all
+323
+edit-delete
 
-dbdel all nonwl recursive
+dbdel all wlinstep 30
 

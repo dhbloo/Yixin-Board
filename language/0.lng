@@ -38,6 +38,7 @@
 39=Number of Threads
 40=Split Depth
 41=Hash Size (MB)
+42=Number of Multi-PV
 43=Board Size (5 ~ 22):
 44=Play
 45=Stop
@@ -125,6 +126,7 @@
 204=Save Database
 205=Load Database
 206=New Database
+207=Multi-PV
 
 300=Trace
 301=ClearHash

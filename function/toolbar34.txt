@@ -1,8 +1,9 @@
-315
-view-refresh
+300
+utilities-terminal
 
+send board
 command on
-reloadconfig config.toml
+traceboard
+tracesearch
 command off
-dbrefresh
 
