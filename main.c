@@ -95,6 +95,7 @@ int     showwarning         = 1;
 int     showdbdelconfirm    = 1;
 int     checktimeout        = 1;
 int     toolbarpos          = 0;
+int     darkmode            = 0; /* 0: light mode 1: dark mode */
 int     language            = 0; /* 0: English 1: Other languages */
 int     rlanguage           = 0;
 char  **clanguage           = NULL;            /* Custom language */
@@ -3046,6 +3047,12 @@ void view_clock()
         gtk_widget_hide(windowclock);
     }
 }
+void switch_darkmode(GtkWidget *widget, gpointer data)
+{
+    darkmode ^= 1;
+    respawn = 1;
+    yixin_quit();
+}
 gint windowclock_delete()
 {
     return TRUE;
@@ -4650,6 +4657,7 @@ void save_setting()
         fprintf(out, "%d\t;checkmate in global search (0: no, 1: vct, 2: vc2)\n", infovcthread);
         fprintf(out, "%d\t;hash autoclear (0: no, 1: yes)\n", hashautoclear);
         fprintf(out, "%d\t;toolbar postion (0: left vertical, 1: right horizontal)\n", toolbarpos);
+        fprintf(out, "%d\t;enable dark mode\n", darkmode);
         fprintf(out, "%d\t;show clock (0: no, 1: yes)\n", showclock);
         fprintf(out, "%d\t;time increment per move\n", increment);
         fprintf(out, "%d\t;show forbidden moves\n", showforbidden);
@@ -5084,7 +5092,7 @@ void create_windowmain()
     GtkWidget *menuitemlanguage, *menuitemenglish, *menuitemcustomlng[16] = {0};
     GtkWidget *menuitemnumeration, *menuitemlog, *menuitemanalysis, *menuitemanalysiswinrate,
         *menuitemwarning, *menuitemclock, *menuitemforbidden, *menuitemabout, *menuitemdatabase,
-        *menuitemdbreadonly, *menuitemboardtext, *menuitemdelallconfirm;
+        *menuitemdbreadonly, *menuitemboardtext, *menuitemdelallconfirm, *menuitemdarkmode;
 
     GtkWidget *textcommand, *btncopypos, *btnsetpos;
 
@@ -5394,6 +5402,8 @@ void create_windowmain()
         gtk_check_menu_item_new_with_label(language == 0 ? "Board Text" : _T(clanguage[113]));
     menuitemdelallconfirm =
         gtk_check_menu_item_new_with_label(language == 0 ? "Delete Confirm" : _T(clanguage[124]));
+    menuitemdarkmode =
+        gtk_check_menu_item_new_with_label(language == 0 ? "Dark Mode" : _T(clanguage[125]));
     menuitemlanguage = gtk_menu_item_new_with_label(language == 0 ? "Language" : _T(clanguage[72]));
     menuitemquit     = gtk_menu_item_new_with_label(language == 0 ? "Quit" : _T(clanguage[73]));
     menuitemabout    = gtk_menu_item_new_with_label(language == 0 ? "About" : _T(clanguage[74]));
@@ -5501,6 +5511,9 @@ void create_windowmain()
     if (showdbdelconfirm) {
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemdelallconfirm), TRUE);
     }
+    if (darkmode) {
+        gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemdarkmode), TRUE);
+    }
     if (showclock) {
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemclock), TRUE);
     }
@@ -5572,6 +5585,7 @@ void create_windowmain()
     gtk_menu_shell_append(GTK_MENU_SHELL(menuview), menuitemdelallconfirm);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuview), menuitemwarning);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuview), menuitemclock);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menuview), menuitemdarkmode);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuview), menuitemlanguage);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuplayers), menuitemcomputerplaysblack);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuplayers), menuitemcomputerplayswhite);
@@ -5607,6 +5621,7 @@ void create_windowmain()
                      "activate",
                      G_CALLBACK(view_dbdelconfirm),
                      NULL);
+    g_signal_connect(G_OBJECT(menuitemdarkmode), "activate", G_CALLBACK(switch_darkmode), NULL);
     g_signal_connect(G_OBJECT(menuitemquit), "activate", G_CALLBACK(yixin_quit), NULL);
     g_signal_connect(G_OBJECT(menuitemabout),
                      "activate",
@@ -6628,6 +6643,9 @@ void load_setting(int def_boardsize, int def_language, int def_toolbar)
         toolbarpos = read_int_from_file(in);
         if (toolbarpos < 0 || toolbarpos > 1)
             toolbarpos = 1;
+        darkmode = read_int_from_file(in);
+        if (darkmode < 0 || darkmode > 1)
+            darkmode = 0;
         showclock = read_int_from_file(in);
         if (showclock < 0 || showclock > 1)
             showclock = 1;
@@ -6896,17 +6914,18 @@ int main(int argc, char **argv)
 
 #ifdef __APPLE__
     // Initialize NSApplication on macOS to prevent terminal window
-    id app = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"),
-                                            sel_registerName("sharedApplication"));
+    id app = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"),
+                                             sel_registerName("sharedApplication"));
     ((void (*)(id, SEL, bool))objc_msgSend)(app, sel_registerName("setActivationPolicy:"), 0);
     ((void (*)(id, SEL))objc_msgSend)(app, sel_registerName("activateIgnoringOtherApps:"));
     set_cwd_to_executable_dir();
 #endif
 
-    gtk_init_with_args(&argc, &argv, NULL, options, NULL, &error);
-
     srand((unsigned)time(NULL));
     load_setting(boardsize, language, toolbar);
+    g_setenv("GTK_THEME", darkmode ? "Adwaita:dark" : "Adwaita", TRUE);
+    gtk_init_with_args(&argc, &argv, NULL, options, NULL, &error);
+
     load_engine();
     init_engine();
     gtk_window_set_default_icon(
