@@ -1,4 +1,5 @@
 #define _CRT_SECURE_NO_WARNINGS /* for vs */
+#define LOCALE_IS_UTF8          /* always use UTF8 locale */
 #include "yixin.h"
 
 #include <ctype.h>
@@ -261,20 +262,28 @@ void panic(const char *msg)
 
 char *_T(char *s)
 {
+#ifdef LOCALE_IS_UTF8
+    return s;
+#else
     if (!s)
         return NULL;
 
     char *result = g_locale_to_utf8(s, -1, 0, 0, 0);
     return result ? result : "??";
+#endif
 }
 
 char *__invT(char *s)
 {
+#ifdef LOCALE_IS_UTF8
+    return s;
+#else
     if (!s)
         return NULL;
 
     char *result = g_locale_from_utf8(s, -1, 0, 0, 0);
     return result ? result : "??";
+#endif
 }
 
 static char *pending_text_buffer     = NULL;
@@ -728,7 +737,6 @@ void refresh_board_at(int j, int i)
                 p = draw_overlay_scaled(pixbufboard[y][x], W, H, text, color, "bold", scale);
                 gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]), p);
                 g_object_unref(G_OBJECT(p));
-                g_free(text);
                 return;
             }
 
@@ -1310,7 +1318,6 @@ void show_dialog_boardtext(GtkWidget *window, int x, int y)
     char *t_utf8 = _T(boardtext[y][x]);
     sprintf(text, "%s", t_utf8);
     gtk_entry_set_text(GTK_ENTRY(entry[0]), text);
-    g_free(t_utf8);
 
     gtk_grid_attach(GTK_GRID(table), label[0], 0, 0, 1, 1);
     gtk_grid_attach(GTK_GRID(table), entry[0], 1, 0, 1, 1);
@@ -1325,9 +1332,7 @@ void show_dialog_boardtext(GtkWidget *window, int x, int y)
         }
         else {
             sscanf(ptext, "%s", text);
-            char *t = __invT(text);
-            sprintf(command, "yxeditlabeldatabase %d,%d %s\n", y, x, t);
-            g_free(t);
+            sprintf(command, "yxeditlabeldatabase %d,%d %s\n", y, x, __invT(text));
         }
 
         send_command(command);
@@ -4006,7 +4011,6 @@ void execute_command(gchar *command)
             }
             _command[i++] = '"';
             _command[i]   = 0;
-            g_free(comment);
 
             send_command(_command);
             for (i = 0; i < piecenum; i++) {
@@ -4028,11 +4032,9 @@ void execute_command(gchar *command)
             memset(boardtext, 0, sizeof(boardtext));
             sscanf(command + 16 + 1, "%s", boardtext);
 
-            int   x    = movepath[piecenum - 1] / boardsize;
-            int   y    = movepath[piecenum - 1] % boardsize;
-            char *text = __invT(boardtext);
-            sprintf(_command, "yxeditlabeldatabase %d,%d %s\n", x, y, text);
-            g_free(text);
+            int x = movepath[piecenum - 1] / boardsize;
+            int y = movepath[piecenum - 1] % boardsize;
+            sprintf(_command, "yxeditlabeldatabase %d,%d %s\n", x, y, __invT(boardtext));
 
             send_command(_command);
             for (i = 0; i < piecenum - 1; i++) {
@@ -4058,10 +4060,8 @@ void execute_command(gchar *command)
             if (xcoord >= 'a' && xcoord <= 'z')
                 xcoord = xcoord - 'a' + 'A';  // convert to upper case
 
-            int   x = boardsize - ycoord, y = xcoord - 'A';
-            char *text = __invT(boardtext);
-            sprintf(_command, "yxeditlabeldatabase %d,%d %s\n", x, y, text);
-            g_free(text);
+            int x = boardsize - ycoord, y = xcoord - 'A';
+            sprintf(_command, "yxeditlabeldatabase %d,%d %s\n", x, y, __invT(boardtext));
 
             send_command(_command);
             for (i = 0; i < piecenum; i++) {
@@ -4508,7 +4508,6 @@ void dbcomment_changed(GtkWidget *widget, gpointer data)
     comment_utf8 =
         gtk_text_buffer_get_text(GTK_TEXT_BUFFER(buffertextdbcomment), &start, &end, FALSE);
     comment = __invT(comment_utf8);
-    g_free(comment_utf8);
 
     static gchar _command[65536];
     const char   cmdhead[] = "yxedittextdatabase \"";
@@ -4529,7 +4528,6 @@ void dbcomment_changed(GtkWidget *widget, gpointer data)
     }
     _command[i++] = '"';
     _command[i]   = 0;
-    g_free(comment);
 
     send_command(_command);
     for (i = 0; i < piecenum; i++) {
@@ -4537,6 +4535,8 @@ void dbcomment_changed(GtkWidget *widget, gpointer data)
         send_command(_command);
     }
     send_command("done\n");
+
+    g_free(comment_utf8);
 }
 
 void textpos_changed(GtkWidget *widget, gpointer data)
@@ -6096,7 +6096,6 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                                                    t,
                                                    len);
                             g_free(rawstring);
-                            g_free(text_utf8);
                             g_io_channel_read_line(channel, &rawstring, &size, NULL, NULL);
                             t = text_utf8 = _T(rawstring);
                             len           = 0;
@@ -6126,7 +6125,6 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                     if (len)
                         gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffertextdbcomment), &end, t, len);
                 }
-                g_free(text_utf8);
             }
             else if (*p == 'L')  //"LOAD"
             {
@@ -6776,7 +6774,7 @@ static void childexit_watch(GPid pid, gint status, gpointer *data)
 void load_engine()
 {
 #ifdef G_OS_WIN32
-    gchar *argv[] = {"engine.exe", NULL};
+    gchar *argv[] = {"engine.exe", "--force-utf8", NULL};
 #else
     gchar *argv[] = {"./engine", NULL};
 #endif
@@ -6882,6 +6880,7 @@ int main(int argc, char **argv)
     create_windowmain();
     show_welcome();
     show_database();
+    printf_log("Current locale: %s\n", setlocale(LC_ALL, NULL));
     gtk_main();
     return 0;
 }
