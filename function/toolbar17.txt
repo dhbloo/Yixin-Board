@@ -1,5 +1,5 @@
 311
-edit-delete
+edit-clear-all
 
 dbdel all
 

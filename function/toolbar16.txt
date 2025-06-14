@@ -1,5 +1,5 @@
-311
+310
 edit-delete
 
-dbdel all
+dbdel one
 
