@@ -277,53 +277,61 @@ static int   pending_size_buffer     = 0;
 static int   pending_capacity_buffer = 0;
 static guint batch_timeout_id_global = 0;
 
+/*  Appends any text accumulated in pending_text_buffer to `buffertextlog`
+ *  (shown by the GtkTextView `textlog`) and then forces the view to the end. */
 static gboolean flush_pending_text_handler(gpointer data)
 {
-    static int   init = 0;
-    GtkTextIter  end;
-    GtkTextMark *scroll_mark;
+    static gboolean mark_created = FALSE; /* create “scroll” mark once   */
+    GtkTextBuffer  *buf;
+    GtkTextIter     start, end;
+    GtkTextMark    *scroll_mark;
+    int             line_count;
 
     batch_timeout_id_global = 0;
     if (!buffertextlog || !pending_text_buffer || pending_size_buffer <= 0)
         return FALSE;
 
-    // Initialize the scroll mark if needed
-    if (init == 0) {
-        gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffertextlog), &end);
-        gtk_text_buffer_create_mark(GTK_TEXT_BUFFER(buffertextlog), "scroll", &end, TRUE);
-        init = 1;
+    buf = GTK_TEXT_BUFFER(buffertextlog);
+
+    /* Ensure the dedicated mark exists the first time we’re called ------- */
+    if (!mark_created) {
+        gtk_text_buffer_get_end_iter(buf, &end);
+        gtk_text_buffer_create_mark(buf, "scroll", &end, TRUE); /* right gravity */
+        mark_created = TRUE;
+    }
+    scroll_mark = gtk_text_buffer_get_mark(buf, "scroll");
+
+    /* Temporarily block change signals ---------------------------------- */
+    g_signal_handlers_block_by_func(buf, NULL, NULL);
+
+    /* Trim log to last 1000 lines --------------------------------------- */
+    line_count = gtk_text_buffer_get_line_count(buf);
+    if (line_count > 1000) {
+        gtk_text_buffer_get_iter_at_line(buf, &start, 0);
+        gtk_text_buffer_get_iter_at_line(buf, &end, line_count - 1000);
+        gtk_text_buffer_delete(buf, &start, &end);
     }
 
-    g_signal_handlers_block_by_func(buffertextlog, NULL, NULL);
-
-    // Truncate if needed
-    int len = gtk_text_buffer_get_line_count(GTK_TEXT_BUFFER(buffertextlog));
-    if (len > 1600) {
-        GtkTextIter start;
-        gtk_text_buffer_get_iter_at_line(GTK_TEXT_BUFFER(buffertextlog), &start, 0);
-        gtk_text_buffer_get_iter_at_line(GTK_TEXT_BUFFER(buffertextlog), &end, len - 1600);
-        gtk_text_buffer_delete(GTK_TEXT_BUFFER(buffertextlog), &start, &end);
-    }
-
-    // Insert text at the end
-    gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffertextlog), &end);
-    gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffertextlog),
-                           &end,
-                           pending_text_buffer,
-                           pending_size_buffer);
+    /* Append pending text ---------------------------------------------- */
+    gtk_text_buffer_get_end_iter(buf, &end);
+    gtk_text_buffer_insert(buf, &end, pending_text_buffer, pending_size_buffer);
     pending_size_buffer = 0;
 
-    g_signal_handlers_unblock_by_func(buffertextlog, NULL, NULL);
+    /* Re-enable signals ------------------------------------------------- */
+    g_signal_handlers_unblock_by_func(buf, NULL, NULL);
 
-    // Update scroll mark and scroll to it
-    gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffertextlog), &end);
-    scroll_mark = gtk_text_buffer_get_mark(GTK_TEXT_BUFFER(buffertextlog), "scroll");
-    if (scroll_mark) {
-        gtk_text_buffer_move_mark(GTK_TEXT_BUFFER(buffertextlog), scroll_mark, &end);
-        gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(textlog), scroll_mark);
-    }
+    /* Move “scroll” mark to the new end and force view to bottom -------- */
+    gtk_text_buffer_get_end_iter(buf, &end);
+    gtk_text_buffer_move_mark(buf, scroll_mark, &end);
 
-    return FALSE;
+    gtk_text_view_scroll_to_mark(GTK_TEXT_VIEW(textlog),
+                                 scroll_mark,
+                                 0.0,  /* within-margin */
+                                 TRUE, /* use alignment  */
+                                 0.0,  /* xalign = left  */
+                                 1.0); /* yalign = bottom*/
+
+    return FALSE; /* do not reschedule */
 }
 
 void print_log(char *text)
@@ -660,248 +668,231 @@ const char *winrate2colorstr(int winrate)
     return color_buf;
 }
 
-int refreshboardflag = 0;    // it is set to 1 when making the 5th move under
-                             // soosorv rule, otherwise, 0
-int  refreshboardflag2 = 0;  // it is set to 1 when refreshboardflag has been set to 1
-void refresh_board_area(int x0, int y0, int x1, int y1)
+int refreshboardflag =
+    0;  // it is set to 1 when making the 5th move under soosorv rule, otherwise, 0
+int refreshboardflag2 = 0;  // it is set to 1 when refreshboardflag has been set to 1
+
+void refresh_board_at(int j, int i)
 {
-    for (int i = y0; i < y1; i++) {
-        for (int j = x0; j < x1; j++) {
-            if (board[i][j] == 0) {
-                if (drawpieceonly)
-                    continue;
+    if (board[i][j] == 0) {
+        if (drawpieceonly)
+            return;
 
-                int f = 0;
-                if (inforule == 2 && (computerside & 1) == 0 && piecenum % 2 == 0 && forbid[i][j]
-                    && isgameover == 0 && isthinking == 0 && showforbidden)
-                    f = 2;
-                if (f == 0) {
-                    if (boardblock[i][j])
-                        f = 10;
-                    else if (showanalysis) {
-                        if (boardlose[i][j])
-                            f = 7;
-                        else if (i == boardbestY && j == boardbestX)
-                            f = 8;
-                        else if (boardpos[i][j] == 1)
-                            f = 9;
-                        else if (boardpos[i][j] == 2)
-                            f = 11;
-                    }
-                    if (f == 0 && usedatabase && showdatabase) {
-                        if (boardtag[i][j])
-                            f = 12 + piecenum % 2;
-                    }
-                }
-                if (f <= 11 || boardtag[i][j] <= 0 && (!showboardtext || boardtext[i][j][0] == 0)) {
-                    if (imgtypeboard[i][j] <= 8)
-                        gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]),
-                                                  pixbufboard[imgtypeboard[i][j]][max(0, f)]);
-                    else
-                        gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]),
-                                                  pixbufboard[0][max(1, f)]);
-                }
-                else {
-                    int        x, y;
-                    GdkPixbuf *p = NULL;
-                    char       n[10];
+        int f = 0;
+        if (inforule == 2 && (computerside & 1) == 0 && piecenum % 2 == 0 && forbid[i][j]
+            && isgameover == 0 && isthinking == 0 && showforbidden)
+            f = 2;
+        if (f == 0) {
+            if (boardblock[i][j])
+                f = 10;
+            else if (showanalysis) {
+                if (boardlose[i][j])
+                    f = 7;
+                else if (i == boardbestY && j == boardbestX)
+                    f = 8;
+                else if (boardpos[i][j] == 1)
+                    f = 9;
+                else if (boardpos[i][j] == 2)
+                    f = 11;
+            }
+            if (f == 0 && usedatabase && showdatabase) {
+                if (boardtag[i][j])
+                    f = 12 + piecenum % 2;
+            }
+        }
+        if (f <= 11 || boardtag[i][j] <= 0 && (!showboardtext || boardtext[i][j][0] == 0)) {
+            if (imgtypeboard[i][j] <= 8)
+                gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]),
+                                          pixbufboard[imgtypeboard[i][j]][max(0, f)]);
+            else
+                gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]), pixbufboard[0][max(1, f)]);
+        }
+        else {
+            int        x, y;
+            GdkPixbuf *p = NULL;
+            char       n[10];
 
-                    if (imgtypeboard[i][j] <= 8) {
-                        y = imgtypeboard[i][j];
-                        x = 0;
-                    }
-                    else {
-                        y = 0;
-                        x = 1;
-                    }
+            if (imgtypeboard[i][j] <= 8) {
+                y = imgtypeboard[i][j];
+                x = 0;
+            }
+            else {
+                y = 0;
+                x = 1;
+            }
 
-                    int         W      = gdk_pixbuf_get_width(pixbufboard[y][x]);
-                    int         H      = gdk_pixbuf_get_height(pixbufboard[y][x]);
-                    const char *color  = piecenum % 2 ? "#FFFFFF" : "#000000";
-                    const char *weight = "normal";
+            int         W      = gdk_pixbuf_get_width(pixbufboard[y][x]);
+            int         H      = gdk_pixbuf_get_height(pixbufboard[y][x]);
+            const char *color  = piecenum % 2 ? "#FFFFFF" : "#000000";
+            const char *weight = "normal";
 
-                    if (showboardtext && boardtext[i][j][0]) {
-                        int   len   = strlen(boardtext[i][j]);
-                        char *text  = _T(boardtext[i][j]);
-                        float scale = 1.0f - 0.1f * max(len - 4, 0);
-                        p           = draw_overlay_scaled(pixbufboard[y][x],
-                                                W,
-                                                H,
-                                                text,
-                                                color,
-                                                "bold",
-                                                scale);
-                        gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]), p);
-                        g_object_unref(G_OBJECT(p));
-                        g_free(text);
-                        continue;
-                    }
+            if (showboardtext && boardtext[i][j][0]) {
+                int   len   = strlen(boardtext[i][j]);
+                char *text  = _T(boardtext[i][j]);
+                float scale = 1.0f - 0.1f * max(len - 4, 0);
+                p = draw_overlay_scaled(pixbufboard[y][x], W, H, text, color, "bold", scale);
+                gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]), p);
+                g_object_unref(G_OBJECT(p));
+                g_free(text);
+                return;
+            }
 
 #define UPPERCASE_TAG(tag) \
     ((tag) == 'w' ? 'W' : ((tag) == 'l' ? 'L' : ((tag) == 'd' ? 'D' : (tag))))
-                    int tag = boardtag[i][j];
-                    if (tag < 128) {
-                        tag = UPPERCASE_TAG(tag);
-                        if (pixbufboardchar[y][x][tag][piecenum % 2] == NULL) {
-                            if (tag == 'W')
-                                color = winrate2colorstr(100), weight = "bold";
-                            else if (tag == 'L')
-                                color = winrate2colorstr(0);
+            int tag = boardtag[i][j];
+            if (tag < 128) {
+                tag = UPPERCASE_TAG(tag);
+                if (pixbufboardchar[y][x][tag][piecenum % 2] == NULL) {
+                    if (tag == 'W')
+                        color = winrate2colorstr(100), weight = "bold";
+                    else if (tag == 'L')
+                        color = winrate2colorstr(0);
 
-                            sprintf(n, "%c", tag);
-                            pixbufboardchar[y][x][tag][piecenum % 2] =
+                    sprintf(n, "%c", tag);
+                    pixbufboardchar[y][x][tag][piecenum % 2] =
+                        draw_overlay_scaled(pixbufboard[y][x], W, H, n, color, weight, 1.0f);
+                }
+                gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]),
+                                          pixbufboardchar[y][x][tag][piecenum % 2]);
+            }
+            else {
+                int   first = 0;  // first character of the tag
+                float scale;
+                if (tag >> 16 == 0)
+                    sprintf(n, "%c%c", first = UPPERCASE_TAG(tag / 256), tag % 256), scale = 0.97f;
+                else if (tag >> 24 == 0)
+                    sprintf(n,
+                            "%c%c%c",
+                            first = UPPERCASE_TAG(tag / 65536),
+                            tag / 256 % 256,
+                            tag % 256),
+                        scale = 0.95f;
+                else
+                    sprintf(n,
+                            "%c%c%c%c",
+                            first = UPPERCASE_TAG(tag / 16777216),
+                            tag / 65536 % 256,
+                            tag / 256 % 256,
+                            tag % 256),
+                        scale = 0.9f;
+
+                if (first == 'W' || first == 'L') {
+                    if (first == 'W')
+                        color = winrate2colorstr(100), weight = "bold", scale *= 0.98f;
+                    else
+                        color = winrate2colorstr(0), scale *= 0.95f;
+
+                    int step = n[1] == '*' && n[2] == 0 ? 0 : atoi(n + 1);
+                    if (step == 0)
+                        n[1] = '*', n[2] = 0;
+                    if (step >= 0 && step < 100) {
+                        // use cached Win/Lose pixbuf
+                        int idx = step + 100 * (first == 'L') + 128;
+                        if (pixbufboardchar[y][x][idx][piecenum % 2] == NULL) {
+                            pixbufboardchar[y][x][idx][piecenum % 2] =
                                 draw_overlay_scaled(pixbufboard[y][x],
                                                     W,
                                                     H,
                                                     n,
                                                     color,
                                                     weight,
-                                                    1.0f);
+                                                    scale);
                         }
                         gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]),
-                                                  pixbufboardchar[y][x][tag][piecenum % 2]);
+                                                  pixbufboardchar[y][x][idx][piecenum % 2]);
+                        return;
                     }
-                    else {
-                        int   first = 0;  // first character of the tag
-                        float scale;
-                        if (tag >> 16 == 0)
-                            sprintf(n, "%c%c", first = UPPERCASE_TAG(tag / 256), tag % 256),
-                                scale = 0.97f;
-                        else if (tag >> 24 == 0)
-                            sprintf(n,
-                                    "%c%c%c",
-                                    first = UPPERCASE_TAG(tag / 65536),
-                                    tag / 256 % 256,
-                                    tag % 256),
-                                scale = 0.95f;
-                        else
-                            sprintf(n,
-                                    "%c%c%c%c",
-                                    first = UPPERCASE_TAG(tag / 16777216),
-                                    tag / 65536 % 256,
-                                    tag / 256 % 256,
-                                    tag % 256),
-                                scale = 0.9f;
-
-                        if (first == 'W' || first == 'L') {
-                            if (first == 'W')
-                                color = winrate2colorstr(100), weight = "bold", scale *= 0.98f;
-                            else
-                                color = winrate2colorstr(0), scale *= 0.95f;
-
-                            int step = n[1] == '*' && n[2] == 0 ? 0 : atoi(n + 1);
-                            if (step == 0)
-                                n[1] = '*', n[2] = 0;
-                            if (step >= 0 && step < 100) {
-                                // use cached Win/Lose pixbuf
-                                int idx = step + 100 * (first == 'L') + 128;
-                                if (pixbufboardchar[y][x][idx][piecenum % 2] == NULL) {
-                                    pixbufboardchar[y][x][idx][piecenum % 2] =
-                                        draw_overlay_scaled(pixbufboard[y][x],
-                                                            W,
-                                                            H,
-                                                            n,
-                                                            color,
-                                                            weight,
-                                                            scale);
-                                }
-                                gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]),
-                                                          pixbufboardchar[y][x][idx][piecenum % 2]);
-                                continue;
-                            }
+                }
+                else if (tag % 256 == '%') {
+                    weight      = "bold", scale *= 0.98f;
+                    int winrate = atoi(n);
+                    if (winrate >= 0 && winrate < 100) {
+                        // use cached Winrate pixbuf
+                        int idx = winrate + 100 * 2 + 128;
+                        if (pixbufboardchar[y][x][idx][piecenum % 2] == NULL) {
+                            color = winrate2colorstr(max(winrate, 1));  // use winrate=1 at least
+                            pixbufboardchar[y][x][idx][piecenum % 2] =
+                                draw_overlay_scaled(pixbufboard[y][x],
+                                                    W,
+                                                    H,
+                                                    n,
+                                                    color,
+                                                    weight,
+                                                    scale);
                         }
-                        else if (tag % 256 == '%') {
-                            weight      = "bold", scale *= 0.98f;
-                            int winrate = atoi(n);
-                            if (winrate >= 0 && winrate < 100) {
-                                // use cached Winrate pixbuf
-                                int idx = winrate + 100 * 2 + 128;
-                                if (pixbufboardchar[y][x][idx][piecenum % 2] == NULL) {
-                                    color = winrate2colorstr(
-                                        max(winrate, 1));  // use winrate=1 at least
-                                    pixbufboardchar[y][x][idx][piecenum % 2] =
-                                        draw_overlay_scaled(pixbufboard[y][x],
-                                                            W,
-                                                            H,
-                                                            n,
-                                                            color,
-                                                            weight,
-                                                            scale);
-                                }
-                                gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]),
-                                                          pixbufboardchar[y][x][idx][piecenum % 2]);
-                                continue;
-                            }
-                        }
-
-                        p = draw_overlay_scaled(pixbufboard[y][x], W, H, n, color, weight, scale);
-                        gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]), p);
-                        g_object_unref(G_OBJECT(p));
+                        gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]),
+                                                  pixbufboardchar[y][x][idx][piecenum % 2]);
+                        return;
                     }
+                }
+
+                p = draw_overlay_scaled(pixbufboard[y][x], W, H, n, color, weight, scale);
+                gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]), p);
+                g_object_unref(G_OBJECT(p));
+            }
+        }
+    }
+    else {
+        int f = 0, _f = 0;
+        int x, y;
+        int bn = boardnumber[i][j];
+        int bz = 3 + board[i][j] - 1;
+        if (movepath[piecenum - 1] / boardsize == i && movepath[piecenum - 1] % boardsize == j)
+            f = 2;
+        if (refreshboardflag == 1) {
+            if (specialrule == 3) {
+                int k;
+                for (k = 4; k < piecenum - 1; k++) {
+                    if (movepath[k] / boardsize == i && movepath[k] % boardsize == j) {
+                        _f = 2;
+                        bz -= k % 2;
+                        bn = 5;
+                        break;
+                    }
+                }
+                if (f) {
+                    bz -= (piecenum - 1) % 2;
+                    bn = 5;
                 }
             }
-            else {
-                int f = 0, _f = 0;
-                int x, y;
-                int bn = boardnumber[i][j];
-                int bz = 3 + board[i][j] - 1;
-                if (movepath[piecenum - 1] / boardsize == i
-                    && movepath[piecenum - 1] % boardsize == j)
-                    f = 2;
-                if (refreshboardflag == 1) {
-                    if (specialrule == 3) {
-                        int k;
-                        for (k = 4; k < piecenum - 1; k++) {
-                            if (movepath[k] / boardsize == i && movepath[k] % boardsize == j) {
-                                _f = 2;
-                                bz -= k % 2;
-                                bn = 5;
-                                break;
-                            }
-                        }
-                        if (f) {
-                            bz -= (piecenum - 1) % 2;
-                            bn = 5;
-                        }
-                    }
-                }
+        }
 
-                if (shownumber) {
-                    y     = imgtypeboard[i][j] % 9;
-                    x     = bz;
-                    int W = gdk_pixbuf_get_width(pixbufboard[y][x]);
-                    int H = gdk_pixbuf_get_height(pixbufboard[y][x]);
-                    if (pixbufboardnumber[y][x][bn][(f || _f) ? 1 : 0] == NULL) {
-                        char n[10];
-                        sprintf(n, "%d", bn);
-                        if (f || _f) {
-                            pixbufboardnumber[y][x][bn][1] =
-                                draw_overlay(pixbufboard[y][x], W, H, n, "#FF0000");
-                        }
-                        else {
-                            if (boardnumber[i][j] % 2 == 1)
-                                pixbufboardnumber[y][x][bn][0] =
-                                    draw_overlay(pixbufboard[y][x], W, H, n, "#FFFFFF");
-                            else
-                                pixbufboardnumber[y][x][bn][0] =
-                                    draw_overlay(pixbufboard[y][x], W, H, n, "#000000");
-                        }
-                    }
-                    gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]),
-                                              pixbufboardnumber[y][x][bn][(f || _f) ? 1 : 0]);
+        if (shownumber) {
+            y     = imgtypeboard[i][j] % 9;
+            x     = bz;
+            int W = gdk_pixbuf_get_width(pixbufboard[y][x]);
+            int H = gdk_pixbuf_get_height(pixbufboard[y][x]);
+            if (pixbufboardnumber[y][x][bn][(f || _f) ? 1 : 0] == NULL) {
+                char n[10];
+                sprintf(n, "%d", bn);
+                if (f || _f) {
+                    pixbufboardnumber[y][x][bn][1] =
+                        draw_overlay(pixbufboard[y][x], W, H, n, "#FF0000");
                 }
                 else {
-                    y = imgtypeboard[i][j] % 9;
-                    x = f + _f + bz;
-                    gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]), pixbufboard[y][x]);
+                    if (boardnumber[i][j] % 2 == 1)
+                        pixbufboardnumber[y][x][bn][0] =
+                            draw_overlay(pixbufboard[y][x], W, H, n, "#FFFFFF");
+                    else
+                        pixbufboardnumber[y][x][bn][0] =
+                            draw_overlay(pixbufboard[y][x], W, H, n, "#000000");
                 }
             }
+            gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]),
+                                      pixbufboardnumber[y][x][bn][(f || _f) ? 1 : 0]);
+        }
+        else {
+            y = imgtypeboard[i][j] % 9;
+            x = f + _f + bz;
+            gtk_image_set_from_pixbuf(GTK_IMAGE(imageboard[i][j]), pixbufboard[y][x]);
         }
     }
 }
 void refresh_board()
 {
-    refresh_board_area(0, 0, boardsize, boardsize);
+    for (int y = 0; y < boardsize; y++)
+        for (int x = 0; x < boardsize; x++)
+            refresh_board_at(x, y);
 }
 
 void update_textpos()
@@ -6141,8 +6132,8 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                 p += 5;
                 sscanf(p, "%d,%d", &boardbestY, &boardbestX);
                 if (oldX >= 0 && oldY >= 0)
-                    refresh_board_area(oldX, oldY, oldX + 1, oldY + 1);
-                refresh_board_area(boardbestX, boardbestY, boardbestX + 1, boardbestY + 1);
+                    refresh_board_at(oldX, oldY);
+                refresh_board_at(boardbestX, boardbestY);
             }
             else if (*p == 'V')  //"VAL"
             {
@@ -6154,7 +6145,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                 p += 5;
                 sscanf(p, "%d,%d", &y, &x);
                 boardlose[y][x] = 1;
-                refresh_board_area(x, y, x + 1, y + 1);
+                refresh_board_at(x, y);
             }
             else if (*p == 'P' && *(p + 1) == 'V')  //"PV"
             {
@@ -6166,7 +6157,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                 p += 4;
                 sscanf(p, "%d,%d", &y, &x);
                 boardpos[y][x] = 2;
-                refresh_board_area(x, y, x + 1, y + 1);
+                refresh_board_at(x, y);
             }
             else if (*p == 'R')  //"REFRESH"
             {
@@ -6174,7 +6165,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                     for (int x = 0; x < boardsize; x++) {
                         if (boardpos[y][x]) {
                             boardpos[y][x] = 0;
-                            refresh_board_area(x, y, x + 1, y + 1);
+                            refresh_board_at(x, y);
                         }
                     }
             }
@@ -6184,7 +6175,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                 sscanf(p, "%d,%d", &y, &x);
                 if (boardpos[y][x] == 2)
                     boardpos[y][x] = 1;
-                refresh_board_area(x, y, x + 1, y + 1);
+                refresh_board_at(x, y);
             }
         }
         else if (strncmp(string, "MESSAGE INFO", 12) == 0) {
