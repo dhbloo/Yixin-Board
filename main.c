@@ -2193,10 +2193,9 @@ void show_dialog_load(GtkWidget *widget, gpointer data)
 
     gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_MOUSE);
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
-        char *filenameutf, *filename;
+        char *filename;
         int   nl;
-        filenameutf = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-        filename    = g_locale_from_utf8(filenameutf, -1, NULL, NULL, NULL);
+        filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
         printf_log("%s\n", filename);
         nl = strlen(filename);
         if ((filename[nl - 3] == 'P' || filename[nl - 3] == 'p')
@@ -2290,7 +2289,6 @@ void show_dialog_load(GtkWidget *widget, gpointer data)
                 show_database();
             }
         }
-        g_free(filenameutf);
         g_free(filename);
     }
     gtk_widget_destroy(dialog);
@@ -2314,12 +2312,11 @@ void show_dialog_save(GtkWidget *widget, gpointer data)
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
     gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_MOUSE);
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
-        char *filenameutf, *filename;
+        char *filename;
         char  _filename[256];
         int   len;
-        filenameutf = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-        filename    = g_locale_from_utf8(filenameutf, -1, NULL, NULL, NULL);
-        len         = strlen(filename);
+        filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+        len      = strlen(filename);
         if (len >= 4 && (filename[len - 1] == 'V' || filename[len - 1] == 'v')
             && (filename[len - 2] == 'A' || filename[len - 2] == 'a')
             && (filename[len - 3] == 'S' || filename[len - 3] == 's')
@@ -2341,7 +2338,6 @@ void show_dialog_save(GtkWidget *widget, gpointer data)
             }
             fclose(out);
         }
-        g_free(filenameutf);
         g_free(filename);
     }
     gtk_widget_destroy(dialog);
@@ -2349,7 +2345,7 @@ void show_dialog_save(GtkWidget *widget, gpointer data)
 
 const char *show_dialog_dbselect(GtkWidget *widget, gpointer data, int isSave)
 {
-    static char _filename[256];
+    static char _filename[512];
 
     GtkWidget     *dialog;
     GtkFileFilter *filter;
@@ -2368,11 +2364,10 @@ const char *show_dialog_dbselect(GtkWidget *widget, gpointer data, int isSave)
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
     gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_MOUSE);
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
-        char *filenameutf, *filename;
+        char *filename;
         int   len;
-        filenameutf = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-        filename    = g_locale_from_utf8(filenameutf, -1, NULL, NULL, NULL);
-        len         = strlen(filename);
+        filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+        len      = strlen(filename);
         if (len >= 3 && (filename[len - 1] == 'B' || filename[len - 1] == 'b')
             && (filename[len - 2] == 'D' || filename[len - 2] == 'd')
             && (filename[len - 3] == '.')) {
@@ -2387,7 +2382,6 @@ const char *show_dialog_dbselect(GtkWidget *widget, gpointer data, int isSave)
         _filename[len]     = '\n';
         _filename[len + 1] = 0;
 
-        g_free(filenameutf);
         g_free(filename);
         gtk_widget_destroy(dialog);
         return _filename;
@@ -2399,7 +2393,7 @@ const char *show_dialog_dbselect(GtkWidget *widget, gpointer data, int isSave)
 }
 const char *show_dialog_libselect(GtkWidget *widget, gpointer data, int isSave)
 {
-    static char _filename[256];
+    static char _filename[512];
 
     GtkWidget     *dialog;
     GtkFileFilter *filter;
@@ -2418,11 +2412,10 @@ const char *show_dialog_libselect(GtkWidget *widget, gpointer data, int isSave)
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
     gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_MOUSE);
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
-        char *filenameutf, *filename;
+        char *filename;
         int   len;
-        filenameutf = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-        filename    = g_locale_from_utf8(filenameutf, -1, NULL, NULL, NULL);
-        len         = strlen(filename);
+        filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+        len      = strlen(filename);
         if (len >= 3 && (filename[len - 1] == 'B' || filename[len - 1] == 'b')
             && (filename[len - 2] == 'I' || filename[len - 2] == 'i')
             && (filename[len - 3] == 'L' || filename[len - 3] == 'l')
@@ -2438,7 +2431,6 @@ const char *show_dialog_libselect(GtkWidget *widget, gpointer data, int isSave)
         _filename[len]     = '\n';
         _filename[len + 1] = 0;
 
-        g_free(filenameutf);
         g_free(filename);
         gtk_widget_destroy(dialog);
         return _filename;
