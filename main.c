@@ -184,17 +184,17 @@ char *hotkeynamelist[] = {
 int hotkeykeylist[][2] = {
     {0, 0},           // 0
     {0, GDK_KEY_F1},  // 1
-    {0, GDK_KEY_F1},  // 2
-    {0, GDK_KEY_F1},  // 3
-    {0, GDK_KEY_F1},  // 4
-    {0, GDK_KEY_F1},  // 5
-    {0, GDK_KEY_F1},  // 6
-    {0, GDK_KEY_F1},  // 7
-    {0, GDK_KEY_F1},  // 8
-    {0, GDK_KEY_F1},  // 9
-    {0, GDK_KEY_F1},  // 10
-    {0, GDK_KEY_F1},  // 11
-    {0, GDK_KEY_F1},  // 12
+    {0, GDK_KEY_F2},  // 2
+    {0, GDK_KEY_F3},  // 3
+    {0, GDK_KEY_F4},  // 4
+    {0, GDK_KEY_F5},  // 5
+    {0, GDK_KEY_F6},  // 6
+    {0, GDK_KEY_F7},  // 7
+    {0, GDK_KEY_F8},  // 8
+    {0, GDK_KEY_F9},  // 9
+    {0, GDK_KEY_F10},  // 10
+    {0, GDK_KEY_F11},  // 11
+    {0, GDK_KEY_F12},  // 12
 
     {GDK_CONTROL_MASK, GDK_KEY_Up},     // 13
     {GDK_CONTROL_MASK, GDK_KEY_Down},   // 14
@@ -202,42 +202,42 @@ int hotkeykeylist[][2] = {
     {GDK_CONTROL_MASK, GDK_KEY_Right},  // 16
 
     {GDK_CONTROL_MASK, GDK_KEY_1},  // 17
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 18
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 19
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 20
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 21
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 22
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 23
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 24
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 25
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 26
+    {GDK_CONTROL_MASK, GDK_KEY_2},  // 18
+    {GDK_CONTROL_MASK, GDK_KEY_3},  // 19
+    {GDK_CONTROL_MASK, GDK_KEY_4},  // 20
+    {GDK_CONTROL_MASK, GDK_KEY_5},  // 21
+    {GDK_CONTROL_MASK, GDK_KEY_6},  // 22
+    {GDK_CONTROL_MASK, GDK_KEY_7},  // 23
+    {GDK_CONTROL_MASK, GDK_KEY_8},  // 24
+    {GDK_CONTROL_MASK, GDK_KEY_9},  // 25
+    {GDK_CONTROL_MASK, GDK_KEY_0},  // 26
 
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 27
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 28
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 29
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 30
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 31
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 32
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 33
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 34
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 35
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 36
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 37
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 38
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 39
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 40
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 41
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 42
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 43
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 44
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 45
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 46
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 47
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 48
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 49
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 50
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 51
-    {GDK_CONTROL_MASK, GDK_KEY_1},  // 52
+    {GDK_CONTROL_MASK, GDK_KEY_A},  // 27
+    {GDK_CONTROL_MASK, GDK_KEY_B},  // 28
+    {GDK_CONTROL_MASK, GDK_KEY_C},  // 29
+    {GDK_CONTROL_MASK, GDK_KEY_D},  // 30
+    {GDK_CONTROL_MASK, GDK_KEY_E},  // 31
+    {GDK_CONTROL_MASK, GDK_KEY_F},  // 32
+    {GDK_CONTROL_MASK, GDK_KEY_G},  // 33
+    {GDK_CONTROL_MASK, GDK_KEY_H},  // 34
+    {GDK_CONTROL_MASK, GDK_KEY_I},  // 35
+    {GDK_CONTROL_MASK, GDK_KEY_J},  // 36
+    {GDK_CONTROL_MASK, GDK_KEY_K},  // 37
+    {GDK_CONTROL_MASK, GDK_KEY_L},  // 38
+    {GDK_CONTROL_MASK, GDK_KEY_M},  // 39
+    {GDK_CONTROL_MASK, GDK_KEY_N},  // 40
+    {GDK_CONTROL_MASK, GDK_KEY_O},  // 41
+    {GDK_CONTROL_MASK, GDK_KEY_P},  // 42
+    {GDK_CONTROL_MASK, GDK_KEY_Q},  // 43
+    {GDK_CONTROL_MASK, GDK_KEY_R},  // 44
+    {GDK_CONTROL_MASK, GDK_KEY_S},  // 45
+    {GDK_CONTROL_MASK, GDK_KEY_T},  // 46
+    {GDK_CONTROL_MASK, GDK_KEY_U},  // 47
+    {GDK_CONTROL_MASK, GDK_KEY_V},  // 48
+    {GDK_CONTROL_MASK, GDK_KEY_W},  // 49
+    {GDK_CONTROL_MASK, GDK_KEY_X},  // 50
+    {GDK_CONTROL_MASK, GDK_KEY_Y},  // 51
+    {GDK_CONTROL_MASK, GDK_KEY_Z},  // 52
 
     {0, GDK_KEY_Escape}  // 53
 };
@@ -3875,7 +3875,10 @@ void execute_command(gchar *command)
     }
     else if (yixin_strnicmp(command, "key list", 8) == 0) {
         for (i = 0; i < hotkeynum; i++) {
-            printf_log("%d. %s\n", i + 1, hotkeynamelist[hotkeykey[i]]);
+            printf_log("Key %d: %s\n", i + 1, hotkeynamelist[hotkeykey[i]]);
+            printf_log("------------------------------\n");
+            printf_log("   %s\n", hotkeycommand[i]);
+            printf_log("------------------------------\n");
         }
         printf_log("\n");
     }
