@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <locale.h>
 
 #ifdef __APPLE__
     #include <objc/NSObjCRuntime.h>
@@ -3960,7 +3961,7 @@ void execute_command(gchar *command)
         if (sscanf(command + 8, "%d", &s) != 1)
             s = 0;
         send_board(FALSE);
-        isthinking = true;
+        isthinking = TRUE;
         sprintf(_command, "yxbalance%s %d\n", t == 1 ? "one" : "two", s);
         send_command(_command);
     }
@@ -3976,7 +3977,7 @@ void execute_command(gchar *command)
         send_board(FALSE);
         clear_board_tag();
         refresh_board();
-        isthinking = true;
+        isthinking = TRUE;
         sprintf(_command, "yxnbest %d\n", numpv);
         send_command(_command);
     }
@@ -3985,7 +3986,7 @@ void execute_command(gchar *command)
         send_board(FALSE);
         clear_board_tag();
         refresh_board();
-        isthinking = true;
+        isthinking = TRUE;
         sprintf(_command, "yxsearchdefend\n");
         send_command(_command);
     }
@@ -6316,7 +6317,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                             tag = 'W' << 16 | ('0' + (curmatestep / 10)) << 8
                                   | ('0' + (curmatestep % 10));
                         else if (curmatestep >= 0)
-                            tag = 'M' << 16 | ('0' + curmatestep) << 8;
+                            tag = 'W' << 16 | ('0' + curmatestep) << 8;
                     }
                     else if (curmatestep < 0) {
                         curmatestep = -curmatestep;
@@ -6927,6 +6928,7 @@ int main(int argc, char **argv)
     load_setting(boardsize, language, toolbar);
     g_setenv("GTK_THEME", darkmode ? "Adwaita:dark" : "Adwaita", TRUE);
     gtk_init_with_args(&argc, &argv, NULL, options, NULL, &error);
+    setlocale(LC_NUMERIC, "C");
 
     load_engine();
     init_engine();
