@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <locale.h>
 
 #ifdef __APPLE__
     #include <objc/NSObjCRuntime.h>
@@ -66,7 +65,7 @@ int     boardblock[MAX_SIZE][MAX_SIZE];
 int     boardbestX = -1, boardbestY = -1;
 int     boardpvX = -1, boardpvY = -1;
 int     curpvidx = 0, curnumpv = 0;
-int     curwinrate, curmatestep, curdepth;
+int     curwinrate, curmatestep, curdepth, curdrawingcount;
 int     boarddepth[MAX_SIZE][MAX_SIZE];
 int     boardlose[MAX_SIZE][MAX_SIZE];
 int     boardpos[MAX_SIZE][MAX_SIZE];
@@ -97,6 +96,8 @@ int     showdbdelconfirm    = 1;
 int     checktimeout        = 1;
 int     toolbarpos          = 0;
 int     darkmode            = 0; /* 0: light mode 1: dark mode */
+int     enable_callbacks    = 0; /* 0: disable, 1: enable */
+int     callback_disabled   = 0; /* 0: none, >=1: clear how many times */
 int     language            = 0; /* 0: English 1: Other languages */
 int     rlanguage           = 0;
 char  **clanguage           = NULL;            /* Custom language */
@@ -111,6 +112,7 @@ GtkWidget *tableboard;
 GtkWidget *imageboard[MAX_SIZE][MAX_SIZE];
 GtkWidget *labelboard[2][MAX_SIZE];
 GtkWidget *vboxwindowmain;
+GtkWidget *menuitemcallbacks;
 GdkPixbuf *pixbufboard[9][14];
 GdkPixbuf *pixbufboardnumber[9][14][MAX_SIZE * MAX_SIZE + 1][2];
 GdkPixbuf *pixbufboardchar[9][14][128 + 100 + 100 + 100][2];
@@ -183,16 +185,16 @@ char *hotkeynamelist[] = {
     NULL};
 
 int hotkeykeylist[][2] = {
-    {0, 0},           // 0
-    {0, GDK_KEY_F1},  // 1
-    {0, GDK_KEY_F2},  // 2
-    {0, GDK_KEY_F3},  // 3
-    {0, GDK_KEY_F4},  // 4
-    {0, GDK_KEY_F5},  // 5
-    {0, GDK_KEY_F6},  // 6
-    {0, GDK_KEY_F7},  // 7
-    {0, GDK_KEY_F8},  // 8
-    {0, GDK_KEY_F9},  // 9
+    {0, 0},            // 0
+    {0, GDK_KEY_F1},   // 1
+    {0, GDK_KEY_F2},   // 2
+    {0, GDK_KEY_F3},   // 3
+    {0, GDK_KEY_F4},   // 4
+    {0, GDK_KEY_F5},   // 5
+    {0, GDK_KEY_F6},   // 6
+    {0, GDK_KEY_F7},   // 7
+    {0, GDK_KEY_F8},   // 8
+    {0, GDK_KEY_F9},   // 9
     {0, GDK_KEY_F10},  // 10
     {0, GDK_KEY_F11},  // 11
     {0, GDK_KEY_F12},  // 12
@@ -242,6 +244,11 @@ int hotkeykeylist[][2] = {
 
     {0, GDK_KEY_Escape}  // 53
 };
+
+char callback_mate_command[4096];
+char callback_mated_command[4096];
+char callback_draw_command[4096];
+char callback_move_command[4096];
 
 void panic(const char *msg)
 {
@@ -2674,7 +2681,6 @@ void show_dialog_custom_toolbar(GtkWidget *widget, gpointer data)
 
     switch (result) {
     case GTK_RESPONSE_ACCEPT: {
-        gchar *command;
         ptext = gtk_entry_get_text(GTK_ENTRY(entry));
         if (is_integer(ptext))
             sscanf(ptext, "%d", &toolbarlng[GPOINTER_TO_INT(data)]);
@@ -2691,9 +2697,11 @@ void show_dialog_custom_toolbar(GtkWidget *widget, gpointer data)
         }
 
         gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffercommand), &start, &end);
-        command = gtk_text_buffer_get_text(GTK_TEXT_BUFFER(buffercommand), &start, &end, FALSE);
+        gchar *command =
+            gtk_text_buffer_get_text(GTK_TEXT_BUFFER(buffercommand), &start, &end, FALSE);
         strcpy(toolbarcommand[GPOINTER_TO_INT(data)], command);
 
+        g_free(command);
         respawn = 1;
         yixin_quit();
     }
@@ -2767,12 +2775,12 @@ void show_dialog_custom_hotkey(GtkWidget *widget, gpointer data)
 
     switch (result) {
     case GTK_RESPONSE_ACCEPT: {
-        gchar *command;
-
         gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffercommand), &start, &end);
-        command = gtk_text_buffer_get_text(GTK_TEXT_BUFFER(buffercommand), &start, &end, FALSE);
+        gchar *command =
+            gtk_text_buffer_get_text(GTK_TEXT_BUFFER(buffercommand), &start, &end, FALSE);
         strcpy(hotkeycommand[GPOINTER_TO_INT(data)], command);
         hotkeykey[GPOINTER_TO_INT(data)] = gtk_combo_box_get_active(combo);
+        g_free(command);
     }
     case GTK_RESPONSE_REJECT: break;
     }
@@ -2979,6 +2987,13 @@ void view_dbdelconfirm(GtkWidget *widget, gpointer data)
     showdbdelconfirm ^= 1;
     refresh_board();
 }
+void toggle_callbacks(GtkWidget *widget, gpointer data)
+{
+    enable_callbacks ^= 1;
+    if (enable_callbacks)
+        callback_disabled = 0;
+}
+
 void use_database(GtkWidget *widget, gpointer data)
 {
     char command[80];
@@ -3442,6 +3457,12 @@ void execute_command(gchar *command)
             make_move(movepath[i] / boardsize, movepath[i] % boardsize);
         show_forbid();
         show_database();
+    }
+    else if (yixin_strnicmp(command, "callback on", 11) == 0) {
+        callback_disabled = 0;
+    }
+    else if (yixin_strnicmp(command, "callback off", 12) == 0) {
+        callback_disabled = 1;
     }
     else if (yixin_strnicmp(command, "putposclipboard", 15) == 0) {
         GtkClipboard *clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
@@ -4502,12 +4523,11 @@ void execute_command(gchar *command)
 
 gboolean key_command(GtkWidget *widget, GdkEventKey *event, gpointer data)
 {
-    GtkTextIter start, end;
-    gchar      *command;
-
     if (event->keyval == GDK_KEY_Return && !(event->state & GDK_CONTROL_MASK)) {
+        GtkTextIter start, end;
         gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffertextcommand), &start, &end);
-        command = gtk_text_buffer_get_text(GTK_TEXT_BUFFER(buffertextcommand), &start, &end, FALSE);
+        gchar *command =
+            gtk_text_buffer_get_text(GTK_TEXT_BUFFER(buffertextcommand), &start, &end, FALSE);
 
         custom_function(command);
 
@@ -4563,9 +4583,8 @@ void textpos_changed(GtkWidget *widget, gpointer data)
         return;
 
     GtkTextIter start, end;
-    gchar      *posstr, *command;
     gtk_text_buffer_get_bounds(GTK_TEXT_BUFFER(buffertextpos), &start, &end);
-    posstr = gtk_text_buffer_get_text(GTK_TEXT_BUFFER(buffertextpos), &start, &end, FALSE);
+    gchar *posstr = gtk_text_buffer_get_text(GTK_TEXT_BUFFER(buffertextpos), &start, &end, FALSE);
 
     int j = 0;
     for (int i = 0; posstr[i]; i++) {
@@ -4591,7 +4610,7 @@ void textpos_changed(GtkWidget *widget, gpointer data)
     }
 
     if (valid) {
-        command = g_strdup_printf("putpos %s", posstr);
+        gchar *command = g_strdup_printf("putpos %s", posstr);
         execute_command(command);
         g_free(command);
     }
@@ -5400,6 +5419,8 @@ void create_windowmain()
         gtk_check_menu_item_new_with_label(language == 0 ? "Delete Confirm" : _T(clanguage[124]));
     menuitemdarkmode =
         gtk_check_menu_item_new_with_label(language == 0 ? "Dark Mode" : _T(clanguage[125]));
+    menuitemcallbacks =
+        gtk_check_menu_item_new_with_label(language == 0 ? "Use Callbacks" : _T(clanguage[126]));
     menuitemlanguage = gtk_menu_item_new_with_label(language == 0 ? "Language" : _T(clanguage[72]));
     menuitemquit     = gtk_menu_item_new_with_label(language == 0 ? "Quit" : _T(clanguage[73]));
     menuitemabout    = gtk_menu_item_new_with_label(language == 0 ? "About" : _T(clanguage[74]));
@@ -5510,6 +5531,9 @@ void create_windowmain()
     if (darkmode) {
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemdarkmode), TRUE);
     }
+    if (enable_callbacks) {
+        gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemcallbacks), TRUE);
+    }
     if (showclock) {
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemclock), TRUE);
     }
@@ -5586,6 +5610,7 @@ void create_windowmain()
     gtk_menu_shell_append(GTK_MENU_SHELL(menuplayers), menuitemcomputerplaysblack);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuplayers), menuitemcomputerplayswhite);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuplayers), menuitemchecktimeout);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menuplayers), menuitemcallbacks);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuplayers), menuitemsettings);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuhelp), menuitemabout);
 
@@ -5618,6 +5643,7 @@ void create_windowmain()
                      G_CALLBACK(view_dbdelconfirm),
                      NULL);
     g_signal_connect(G_OBJECT(menuitemdarkmode), "activate", G_CALLBACK(switch_darkmode), NULL);
+    g_signal_connect(G_OBJECT(menuitemcallbacks), "activate", G_CALLBACK(toggle_callbacks), NULL);
     g_signal_connect(G_OBJECT(menuitemquit), "activate", G_CALLBACK(yixin_quit), NULL);
     g_signal_connect(G_OBJECT(menuitemabout),
                      "activate",
@@ -6304,7 +6330,6 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                 value = NULL;
             }
 
-            // TODO: parse the key and value
             if (strncmp(key, "PV", 2) == 0) {
                 if (strncmp(value, "DONE", 4) == 0) {
                     int tag = 0;
@@ -6318,6 +6343,9 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                                   | ('0' + (curmatestep % 10));
                         else if (curmatestep >= 0)
                             tag = 'W' << 16 | ('0' + curmatestep) << 8;
+
+                        if (enable_callbacks && !callback_disabled)
+                            custom_function(callback_mate_command);
                     }
                     else if (curmatestep < 0) {
                         curmatestep = -curmatestep;
@@ -6330,6 +6358,9 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                                   | ('0' + (curmatestep % 10));
                         else if (curmatestep >= 0)
                             tag = 'L' << 16 | ('0' + curmatestep) << 8;
+
+                        if (enable_callbacks && !callback_disabled)
+                            custom_function(callback_mated_command);
                     }
                     else {
                         if (curwinrate < 10)
@@ -6337,6 +6368,17 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                         else
                             tag = ('0' + (curwinrate / 10)) << 16 | ('0' + (curwinrate % 10)) << 8
                                   | '%';
+
+                        if (curwinrate == 50)
+                            curdrawingcount++;
+                        else
+                            curdrawingcount = 0;
+
+                        if (curdrawingcount >= 10) {
+                            curdrawingcount = 0;
+                            if (enable_callbacks && !callback_disabled)
+                                custom_function(callback_draw_command);
+                        }
                     }
 
                     if (showanalysiswinrate && boardpvX >= 0 && boardpvY >= 0) {
@@ -6465,6 +6507,9 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                             send_command("yxhashclear\n");
                         send_board(TRUE);
                     }
+
+                    if (enable_callbacks && !callback_disabled)
+                        custom_function(callback_move_command);
                 }
             }
         }
@@ -6780,6 +6825,64 @@ void load_setting(int def_boardsize, int def_language, int def_toolbar)
     else {
         language = 0;
     }
+
+    // Load callback functions
+    if ((in = fopen("function/callback_mate.txt", "r")) != NULL) {
+        int j = 0;
+        while (fgets(callback_mate_command + j, 4096, in)) {
+            j += strlen(callback_mate_command + j);
+            while (
+                j > 0
+                && (callback_mate_command[j - 1] == '\n' || callback_mate_command[j - 1] == '\r'))
+                j--;
+            callback_mate_command[j] = '\n';
+            j++;
+            callback_mate_command[j] = 0;
+        }
+        fclose(in);
+    }
+    if ((in = fopen("function/callback_mated.txt", "r")) != NULL) {
+        int j = 0;
+        while (fgets(callback_mated_command + j, 4096, in)) {
+            j += strlen(callback_mated_command + j);
+            while (
+                j > 0
+                && (callback_mated_command[j - 1] == '\n' || callback_mated_command[j - 1] == '\r'))
+                j--;
+            callback_mated_command[j] = '\n';
+            j++;
+            callback_mated_command[j] = 0;
+        }
+        fclose(in);
+    }
+    if ((in = fopen("function/callback_draw.txt", "r")) != NULL) {
+        int j = 0;
+        while (fgets(callback_draw_command + j, 4096, in)) {
+            j += strlen(callback_draw_command + j);
+            while (
+                j > 0
+                && (callback_draw_command[j - 1] == '\n' || callback_draw_command[j - 1] == '\r'))
+                j--;
+            callback_draw_command[j] = '\n';
+            j++;
+            callback_draw_command[j] = 0;
+        }
+        fclose(in);
+    }
+    if ((in = fopen("function/callback_move.txt", "r")) != NULL) {
+        int j = 0;
+        while (fgets(callback_move_command + j, 4096, in)) {
+            j += strlen(callback_move_command + j);
+            while (
+                j > 0
+                && (callback_move_command[j - 1] == '\n' || callback_move_command[j - 1] == '\r'))
+                j--;
+            callback_move_command[j] = '\n';
+            j++;
+            callback_move_command[j] = 0;
+        }
+        fclose(in);
+    }
 }
 
 static void childexit_watch(GPid pid, gint status, gpointer *data)
@@ -6917,8 +7020,8 @@ int main(int argc, char **argv)
 
 #ifdef __APPLE__
     // Initialize NSApplication on macOS to prevent terminal window
-    id app = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"),
-                                             sel_registerName("sharedApplication"));
+    id app = ((id(*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"),
+                                            sel_registerName("sharedApplication"));
     ((void (*)(id, SEL, bool))objc_msgSend)(app, sel_registerName("setActivationPolicy:"), 0);
     ((void (*)(id, SEL))objc_msgSend)(app, sel_registerName("activateIgnoringOtherApps:"));
     set_cwd_to_executable_dir();
