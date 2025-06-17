@@ -1,0 +1,2 @@
+echo Reached minply, finish book making!
+callback off

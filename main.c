@@ -245,10 +245,16 @@ int hotkeykeylist[][2] = {
     {0, GDK_KEY_Escape}  // 53
 };
 
+int  callback_draw_count = 10;
+int  callback_minply     = 1;
+int  callback_maxply     = MAX_SIZE * MAX_SIZE;
 char callback_mate_command[4096];
 char callback_mated_command[4096];
 char callback_draw_command[4096];
 char callback_move_command[4096];
+char callback_move_minply_command[4096];
+char callback_move_maxply_command[4096];
+char pos_stack[10][MAX_SIZE * MAX_SIZE * 3 + 1];
 
 void panic(const char *msg)
 {
@@ -1795,7 +1801,7 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
     const gchar *ptext;
     GtkWidget   *dialog;
     GtkWidget   *notebook;
-    GtkWidget   *notebookvbox[3];
+    GtkWidget   *notebookvbox[4];  // Increased from 3 to 4 for the new tab
     GtkWidget   *hbox[12];
     GtkWidget   *radiolevel[3];
     GtkWidget   *radiovcthread[3];
@@ -1804,6 +1810,10 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
     GtkWidget *entrytimeturn, *entrytimematch, *entrymaxdepth, *entrymaxnode, *entryincrement;
     GtkWidget *scalelevel, *scalecaution, *scalethreads, *scalehash, *scalenumpv;
     GtkWidget *tablesetting;
+    // New widgets for the bookmaking tab
+    GtkWidget *tablebook;
+    GtkWidget *labelminply, *labelmaxply;
+    GtkWidget *entryminply, *entrymaxply;
     gint       result;
 
     show_dialog_settings_custom_entry(NULL, 0);
@@ -1839,6 +1849,11 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
     gtk_notebook_append_page(GTK_NOTEBOOK(notebook),
                              notebookvbox[2],
                              gtk_label_new(language == 0 ? "Resource" : _T(clanguage[20])));
+    // Add new bookmaking tab
+    notebookvbox[3] = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    gtk_notebook_append_page(GTK_NOTEBOOK(notebook),
+                             notebookvbox[3],
+                             gtk_label_new(language == 0 ? "Bookmaking" : _T(clanguage[130])));
 
     for (i = 0; i < 9; i++) {
         labelblank[i] = gtk_label_new(" ");
@@ -2079,6 +2094,41 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
     gtk_box_pack_start(GTK_BOX(notebookvbox[2]), hbox[3], FALSE, FALSE, 3);
     gtk_box_pack_start(GTK_BOX(notebookvbox[2]), hbox[4], FALSE, FALSE, 3);
 
+    tablebook = gtk_grid_new();
+    gtk_grid_set_row_spacing(GTK_GRID(tablebook), 10);
+    gtk_grid_set_column_spacing(GTK_GRID(tablebook), 10);
+    gtk_widget_set_margin_start(tablebook, 20);
+
+    labelminply = gtk_label_new(language == 0 ? "Minimum Ply:" : _T(clanguage[128]));
+    entryminply = gtk_entry_new();
+    gtk_entry_set_width_chars(GTK_ENTRY(entryminply), 5);
+    sprintf(text, "%d", callback_minply);
+    gtk_entry_set_text(GTK_ENTRY(entryminply), text);
+    gtk_widget_set_halign(labelminply, GTK_ALIGN_END);
+
+    labelmaxply = gtk_label_new(language == 0 ? "Maximum Ply:" : _T(clanguage[129]));
+    entrymaxply = gtk_entry_new();
+    gtk_entry_set_width_chars(GTK_ENTRY(entrymaxply), 5);
+    sprintf(text, "%d", callback_maxply);
+    gtk_entry_set_text(GTK_ENTRY(entrymaxply), text);
+    gtk_widget_set_halign(labelmaxply, GTK_ALIGN_END);
+
+    GtkWidget *labeldrawcount = gtk_label_new(language == 0 ? "Draw Count:" : _T(clanguage[127]));
+    GtkWidget *entrydrawcount = gtk_entry_new();
+    gtk_entry_set_width_chars(GTK_ENTRY(entrydrawcount), 5);
+    sprintf(text, "%d", callback_draw_count);
+    gtk_entry_set_text(GTK_ENTRY(entrydrawcount), text);
+    gtk_widget_set_halign(labeldrawcount, GTK_ALIGN_END);
+
+    gtk_grid_attach(GTK_GRID(tablebook), labelminply, 0, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(tablebook), entryminply, 1, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(tablebook), labelmaxply, 0, 1, 1, 1);
+    gtk_grid_attach(GTK_GRID(tablebook), entrymaxply, 1, 1, 1, 1);
+    gtk_grid_attach(GTK_GRID(tablebook), labeldrawcount, 0, 2, 1, 1);
+    gtk_grid_attach(GTK_GRID(tablebook), entrydrawcount, 1, 2, 1, 1);
+
+    gtk_box_pack_start(GTK_BOX(notebookvbox[3]), tablebook, FALSE, FALSE, 20);
+
     gtk_widget_show_all(dialog);
 
     if (levelchoice == 0) {
@@ -2164,6 +2214,31 @@ void show_dialog_settings(GtkWidget *widget, gpointer data)
             set_vcthread(1);
         else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radiovcthread[2])))
             set_vcthread(2);
+
+        /* Update values but do not save to settings file */
+        ptext = gtk_entry_get_text(GTK_ENTRY(entryminply));
+        if (is_integer(ptext)) {
+            sscanf(ptext, "%d", &callback_minply);
+            if (callback_minply < 1)
+                callback_minply = 1;
+        }
+
+        ptext = gtk_entry_get_text(GTK_ENTRY(entrymaxply));
+        if (is_integer(ptext)) {
+            sscanf(ptext, "%d", &callback_maxply);
+            if (callback_maxply > boardsize * boardsize)
+                callback_maxply = boardsize * boardsize;
+            if (callback_maxply < callback_minply)
+                callback_maxply = callback_minply;
+        }
+
+        ptext = gtk_entry_get_text(GTK_ENTRY(entrydrawcount));
+        if (is_integer(ptext)) {
+            sscanf(ptext, "%d", &callback_draw_count);
+            if (callback_draw_count < 4)
+                callback_draw_count = 4;
+        }
+
         break;
     case GTK_RESPONSE_REJECT: break;
     }
@@ -3230,6 +3305,8 @@ void execute_command(gchar *command)
         printf_log(" move [^,v,<,>]\n");
         printf_log(" getpos\n");
         printf_log(" putpos\n");
+        printf_log(" pushpos [0,1,...]\n");
+        printf_log(" poppos [0,1,...]\n");
         printf_log("   %s: putpos f11h7g10h6i10h5j11h8h9h4\n",
                    language ? clanguage[51] : "Example");
         printf_log(" getposclipboard (getpos from clipboard text)\n");
@@ -4509,6 +4586,61 @@ void execute_command(gchar *command)
         sprintf(command, "info database_readonly %d\n", databasereadonly);
         send_command(command);
         refresh_board();
+    }
+    else if (yixin_strnicmp(command, "pushpos", 7) == 0) {
+        i = 0;
+        sscanf(command + 8, "%d", &i);
+        if (i >= 0 && i < 10) {
+            pos_stack[i][0] = 0;
+            char coord[16];
+            for (int j = 0; j < piecenum; j++) {
+                sprintf(coord,
+                        "%c%d",
+                        movepath[j] % boardsize + 'a',
+                        boardsize - 1 - movepath[j] / boardsize + 1);
+                strcat(pos_stack[i], coord);
+            }
+            printf_log("Pushed current position to stack %d\n", i);
+        }
+        else {
+            print_log("Position index must be between 0 and 9");
+        }
+    }
+    else if (yixin_strnicmp(command, "poppos", 6) == 0) {
+        i = 0;
+        sscanf(command + 7, "%d", &i);
+        if (i >= 0 && i < 10) {
+            char *pos = pos_stack[i];
+            new_game(NULL, NULL);
+            i = 0;
+            for (; pos[i];) {
+                int x, y;
+                if (pos[i] >= 'a' && pos[i] <= 'z')
+                    pos[i] = pos[i] - 'a' + 'A';
+                if (pos[i] < 'A' || pos[i] > 'Z')
+                    break;
+                x = pos[i] - 'A';
+                i++;
+                y = pos[i] - '0';
+                i++;
+                if (pos[i] >= '0' && pos[i] <= '9') {
+                    y = y * 10 + pos[i] - '0';
+                    i++;
+                }
+                y = y - 1;
+                if (x < 0 || x >= boardsize || y < 0 || y >= boardsize)
+                    break;
+                y = boardsize - 1 - y;
+                if (board[y][x] != 0)
+                    break;
+                make_move(y, x);
+            }
+            show_forbid();
+            show_database();
+        }
+        else {
+            print_log("Position index must be between 0 and 9");
+        }
     }
     else {
         if (language) {
@@ -6374,7 +6506,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                         else
                             curdrawingcount = 0;
 
-                        if (curdrawingcount >= 10) {
+                        if (curdrawingcount >= callback_draw_count) {
                             curdrawingcount = 0;
                             if (enable_callbacks && !callback_disabled)
                                 custom_function(callback_draw_command);
@@ -6508,8 +6640,14 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                         send_board(TRUE);
                     }
 
-                    if (enable_callbacks && !callback_disabled)
-                        custom_function(callback_move_command);
+                    if (enable_callbacks && !callback_disabled) {
+                        if (piecenum <= callback_minply)
+                            custom_function(callback_move_minply_command);
+                        else if (piecenum >= callback_maxply)
+                            custom_function(callback_move_maxply_command);
+                        else
+                            custom_function(callback_move_command);
+                    }
                 }
             }
         }
@@ -6827,62 +6965,25 @@ void load_setting(int def_boardsize, int def_language, int def_toolbar)
     }
 
     // Load callback functions
-    if ((in = fopen("function/callback_mate.txt", "r")) != NULL) {
-        int j = 0;
-        while (fgets(callback_mate_command + j, 4096, in)) {
-            j += strlen(callback_mate_command + j);
-            while (
-                j > 0
-                && (callback_mate_command[j - 1] == '\n' || callback_mate_command[j - 1] == '\r'))
-                j--;
-            callback_mate_command[j] = '\n';
-            j++;
-            callback_mate_command[j] = 0;
-        }
-        fclose(in);
+#define LOAD_TEXT_FILE(filename, buffer)                                      \
+    if ((in = fopen(filename, "r")) != NULL) {                                \
+        int j = 0;                                                            \
+        while (fgets(buffer + j, 4096, in)) {                                 \
+            j += strlen(buffer + j);                                          \
+            while (j > 0 && (buffer[j - 1] == '\n' || buffer[j - 1] == '\r')) \
+                j--;                                                          \
+            buffer[j] = '\n';                                                 \
+            j++;                                                              \
+            buffer[j] = 0;                                                    \
+        }                                                                     \
+        fclose(in);                                                           \
     }
-    if ((in = fopen("function/callback_mated.txt", "r")) != NULL) {
-        int j = 0;
-        while (fgets(callback_mated_command + j, 4096, in)) {
-            j += strlen(callback_mated_command + j);
-            while (
-                j > 0
-                && (callback_mated_command[j - 1] == '\n' || callback_mated_command[j - 1] == '\r'))
-                j--;
-            callback_mated_command[j] = '\n';
-            j++;
-            callback_mated_command[j] = 0;
-        }
-        fclose(in);
-    }
-    if ((in = fopen("function/callback_draw.txt", "r")) != NULL) {
-        int j = 0;
-        while (fgets(callback_draw_command + j, 4096, in)) {
-            j += strlen(callback_draw_command + j);
-            while (
-                j > 0
-                && (callback_draw_command[j - 1] == '\n' || callback_draw_command[j - 1] == '\r'))
-                j--;
-            callback_draw_command[j] = '\n';
-            j++;
-            callback_draw_command[j] = 0;
-        }
-        fclose(in);
-    }
-    if ((in = fopen("function/callback_move.txt", "r")) != NULL) {
-        int j = 0;
-        while (fgets(callback_move_command + j, 4096, in)) {
-            j += strlen(callback_move_command + j);
-            while (
-                j > 0
-                && (callback_move_command[j - 1] == '\n' || callback_move_command[j - 1] == '\r'))
-                j--;
-            callback_move_command[j] = '\n';
-            j++;
-            callback_move_command[j] = 0;
-        }
-        fclose(in);
-    }
+    LOAD_TEXT_FILE("function/callback_mate.txt", callback_mate_command)
+    LOAD_TEXT_FILE("function/callback_mated.txt", callback_mated_command)
+    LOAD_TEXT_FILE("function/callback_draw.txt", callback_draw_command)
+    LOAD_TEXT_FILE("function/callback_move.txt", callback_move_command)
+    LOAD_TEXT_FILE("function/callback_move_minply.txt", callback_move_minply_command)
+    LOAD_TEXT_FILE("function/callback_move_maxply.txt", callback_move_maxply_command)
 }
 
 static void childexit_watch(GPid pid, gint status, gpointer *data)

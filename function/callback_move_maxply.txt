@@ -1,0 +1,5 @@
+echo Reached maxply, return to initial position
+sleep 500
+poppos 0
+sleep 500
+thinking start

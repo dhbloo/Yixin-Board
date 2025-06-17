@@ -1,0 +1,10 @@
+callback off
+thinking stop
+echo Found mated!
+sleep 500
+echo Undo 2 step and continue search...
+undo one
+sleep 200
+undo one
+callback on
+thinking start

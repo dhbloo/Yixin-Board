@@ -121,6 +121,10 @@
 124=Delete Confirm
 125=Dark Mode
 126=Use Callbacks
+127=Callback Draw Count
+128=Callback Min Ply
+129=Callback Max Ply
+130=Bookmaking
 
 201=VCT
 202=VC2
@@ -129,6 +133,8 @@
 205=Load Database
 206=New Database
 207=Multi-PV
+208=Push Current Position
+209=Pop Current Position
 
 300=Trace
 301=ClearHash

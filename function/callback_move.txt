@@ -1,0 +1,3 @@
+echo Continue deeper search...
+sleep 500
+thinking start

@@ -121,6 +121,10 @@
 124=Xác nhận xóa
 125=Chế độ tối
 126=Sử dụng callback
+127=Số lần đề xuất hòa
+128=Độ sâu tối thiểu
+129=Độ sâu tối đa
+130=Định dạng
 
 201=VCT
 202=VC2
@@ -129,6 +133,8 @@
 205=Tải cơ sở dữ liệu
 206=Cơ sở dữ liệu mới
 207=Đa phương án
+208=Đẩy vị trí hiện tại
+209=Lấy vị trí hiện tại
 
 300=Theo dõi
 301=Xóa bảng băm

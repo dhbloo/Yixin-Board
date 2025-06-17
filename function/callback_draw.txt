@@ -1,0 +1,6 @@
+thinking stop
+echo Found draw!
+sleep 1000
+undo one
+sleep 1000
+undo one
