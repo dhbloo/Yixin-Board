@@ -1,4 +1,8 @@
-208
-view-sort-ascending
+317
+view-refresh
 
-pushpos 0
+command on
+reloadconfig config_classical.toml
+command off
+dbrefresh
+

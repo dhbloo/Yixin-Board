@@ -3378,6 +3378,7 @@ void execute_command(gchar *command)
         printf_log(" dbtotxt all [filename]\n");
         printf_log(" dbtotxt [filename]\n");
         printf_log(" libtodb [filename]\n");
+        printf_log(" dbtolib [filename]\n");
         printf_log(" forbid\n");
         printf_log(" forbid undo\n");
         printf_log(" echo [a line of text]\n");
@@ -4338,6 +4339,37 @@ void execute_command(gchar *command)
             _command[i + 1] = 0;
             if (i > 0) {
                 send_command("yxlibtodb\n");
+                send_command(_command);
+                show_database();
+            }
+        }
+    }
+    else if (yixin_strnicmp(command, "dbtolib", 7) == 0) {
+        gchar _command[80];
+        sprintf(_command, "%s", command + 7 + 1);
+
+        if (command[7] == 0 || command[7] == '\n' || command[7] == '\r') {
+            const char *libfilename = show_dialog_libselect(NULL, windowmain, 1);
+            if (libfilename) {
+                send_command("yxdbtolib\n");
+                send_command(libfilename);
+                show_database();
+            }
+        }
+        else {
+            i = strlen(_command);
+            while (i > 0) {
+                if (_command[i - 1] == '\n' || _command[i - 1] == '\r') {
+                    _command[i - 1] = 0;
+                    i--;
+                }
+                else
+                    break;
+            }
+            _command[i]     = '\n';
+            _command[i + 1] = 0;
+            if (i > 0) {
+                send_command("yxdbtolib\n");
                 send_command(_command);
                 show_database();
             }
