@@ -93,6 +93,7 @@ int     showboardtext       = 1;
 int     showtoolbarboth     = 1;
 int     showwarning         = 1;
 int     showdbdelconfirm    = 1;
+int     showdbprogress      = 1;
 int     checktimeout        = 1;
 int     toolbarpos          = 0;
 int     darkmode            = 0; /* 0: light mode 1: dark mode */
@@ -3062,6 +3063,10 @@ void view_dbdelconfirm(GtkWidget *widget, gpointer data)
     showdbdelconfirm ^= 1;
     refresh_board();
 }
+void view_dbprogress(GtkWidget *widget, gpointer data)
+{
+    showdbprogress ^= 1;
+}
 void toggle_callbacks(GtkWidget *widget, gpointer data)
 {
     enable_callbacks ^= 1;
@@ -4845,6 +4850,7 @@ void save_setting()
         fprintf(out, "%d\t;enable database read-only mode (0: no, 1: yes)\n", databasereadonly);
         fprintf(out, "%d\t;show database baord texts (0: no, 1: yes)\n", showboardtext);
         fprintf(out, "%d\t;show database delall confirmation (0: no, 1: yes)\n", showdbdelconfirm);
+        fprintf(out, "%d\t;show database progress dialog (0: no, 1: yes)\n", showdbprogress);
         fprintf(out, "%d\t;record debug log\n", recorddebuglog);
         fprintf(out, "%d\t;log area horizontal scale\n", (int)(hdpiscale * 100 + 1e-10));
         fprintf(out, "%d\t;symmetric nbest for the 5th moves\n", nbestsym);
@@ -5271,7 +5277,8 @@ void create_windowmain()
     GtkWidget *menuitemlanguage, *menuitemenglish, *menuitemcustomlng[16] = {0};
     GtkWidget *menuitemnumeration, *menuitemlog, *menuitemanalysis, *menuitemanalysiswinrate,
         *menuitemwarning, *menuitemclock, *menuitemforbidden, *menuitemabout, *menuitemdatabase,
-        *menuitemdbreadonly, *menuitemboardtext, *menuitemdelallconfirm, *menuitemdarkmode;
+        *menuitemdbreadonly, *menuitemboardtext, *menuitemdelallconfirm, *menuitemdbprogress,
+        *menuitemdarkmode;
 
     GtkWidget *textcommand, *btncopypos, *btnsetpos;
 
@@ -5581,6 +5588,8 @@ void create_windowmain()
         gtk_check_menu_item_new_with_label(language == 0 ? "Board Text" : _T(clanguage[113]));
     menuitemdelallconfirm =
         gtk_check_menu_item_new_with_label(language == 0 ? "Delete Confirm" : _T(clanguage[124]));
+    menuitemdbprogress = gtk_check_menu_item_new_with_label(
+        language == 0 ? "Database Progress" : _T(clanguage[131]));
     menuitemdarkmode =
         gtk_check_menu_item_new_with_label(language == 0 ? "Dark Mode" : _T(clanguage[125]));
     menuitemcallbacks =
@@ -5692,6 +5701,9 @@ void create_windowmain()
     if (showdbdelconfirm) {
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemdelallconfirm), TRUE);
     }
+    if (showdbprogress) {
+        gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemdbprogress), TRUE);
+    }
     if (darkmode) {
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuitemdarkmode), TRUE);
     }
@@ -5767,6 +5779,7 @@ void create_windowmain()
     gtk_menu_shell_append(GTK_MENU_SHELL(menuview), menuitemforbidden);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuview), menuitemboardtext);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuview), menuitemdelallconfirm);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menuview), menuitemdbprogress);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuview), menuitemwarning);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuview), menuitemclock);
     gtk_menu_shell_append(GTK_MENU_SHELL(menuview), menuitemdarkmode);
@@ -5806,6 +5819,7 @@ void create_windowmain()
                      "activate",
                      G_CALLBACK(view_dbdelconfirm),
                      NULL);
+    g_signal_connect(G_OBJECT(menuitemdbprogress), "activate", G_CALLBACK(view_dbprogress), NULL);
     g_signal_connect(G_OBJECT(menuitemdarkmode), "activate", G_CALLBACK(switch_darkmode), NULL);
     g_signal_connect(G_OBJECT(menuitemcallbacks), "activate", G_CALLBACK(toggle_callbacks), NULL);
     g_signal_connect(G_OBJECT(menuitemquit), "activate", G_CALLBACK(yixin_quit), NULL);
@@ -6351,7 +6365,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                         g_strdup_printf("Yixin (%.*s)", (int)strcspn(filename, "\r\n"), filename);
                     gtk_window_set_title(GTK_WINDOW(windowmain), title);
                     g_free(title);
-                    if (loadingdialog == NULL) {
+                    if (showdbprogress && loadingdialog == NULL) {
                         loadingdialog = gtk_message_dialog_new(
                             GTK_WINDOW(windowmain),
                             GTK_DIALOG_DESTROY_WITH_PARENT,
@@ -6376,7 +6390,7 @@ gboolean iochannelout_watch(GIOChannel *channel, GIOCondition cond, gpointer dat
                 p += 5;
                 if (strncmp(p, "START", 5) == 0) {
                     gtk_window_set_deletable(GTK_WINDOW(windowmain), FALSE);
-                    if (savingdialog == NULL) {
+                    if (showdbprogress && savingdialog == NULL) {
                         savingdialog = gtk_message_dialog_new(GTK_WINDOW(windowmain),
                                                               GTK_DIALOG_DESTROY_WITH_PARENT,
                                                               GTK_MESSAGE_INFO,
@@ -6881,6 +6895,9 @@ void load_setting(int def_boardsize, int def_language, int def_toolbar)
         showdbdelconfirm = read_int_from_file(in);
         if (showdbdelconfirm < 0 || showdbdelconfirm > 1)
             showdbdelconfirm = 1;
+        showdbprogress = read_int_from_file(in);
+        if (showdbprogress < 0 || showdbprogress > 1)
+            showdbprogress = 1;
         recorddebuglog = read_int_from_file(in);
         if (recorddebuglog < 0 || recorddebuglog > 1)
             recorddebuglog = 0;
